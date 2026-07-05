@@ -99,3 +99,7 @@ cd src-tauri && cargo test      # Rust: domain/imaging の単体テスト
 - 出力衝突は自動リネームせずエラー（隠蔽 fallback を避ける方針）
 - 一括書き出しは MVP で逐次実行（`rayon` 並列化は動作確認後に導入予定）
 - 構造化エラーコード、ICC/色プロファイル完全保持、tauri-specta 型自動生成は将来対応
+
+## ライセンス
+
+MIT License. 詳細は [LICENSE](LICENSE) を参照。
