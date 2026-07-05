@@ -1,0 +1,37 @@
+[package]
+name = "blur-filter"
+version = "0.1.0"
+description = "複数画像に一括でガウス/ブロックブラーを適用・保存するデスクトップアプリ"
+authors = ["yAtomtom"]
+edition = "2021"
+rust-version = "1.77"
+
+# ライブラリとバイナリを分離: domain/imaging をライブラリとして単体テスト可能にする
+[lib]
+name = "blur_filter_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+image = "0.25"
+imageproc = "0.25"
+rayon = "1"
+anyhow = "1"
+base64 = "0.22"
+
+[features]
+# デフォルトの production ビルドで custom-protocol を有効化
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
