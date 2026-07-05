@@ -39,7 +39,16 @@ export function useAssets(): UseAssets {
   const addPaths = useCallback(async (paths: string[]) => {
     const targets = paths.filter(hasImageExtension);
     if (targets.length === 0) return;
-    const results = await loadImages(targets);
+
+    // ファイル単位の失敗は results 内 Error 行で扱う。ここで reject するのは
+    // 読み込み処理自体の失敗（Rust 側の join エラー等）＝raw に表示する。
+    let results;
+    try {
+      results = await loadImages(targets);
+    } catch (e) {
+      setErrors([{ path: targets.join(", "), error: String(e) }]);
+      return;
+    }
 
     setAssets((prev) => {
       const byPath = new Map(prev.map((a) => [a.path, a]));

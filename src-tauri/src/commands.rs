@@ -33,8 +33,12 @@ pub struct AppState {
 }
 
 /// 複数画像のメタ情報を読み込む（ヘッダのみ、フル デコードしない）。
+///
+/// ファイル単位の失敗は `LoadResult::Error` 行として返す（部分成功を許す）。
+/// 一方 `spawn_blocking` の join 失敗（パニック等のインフラ障害）は空配列へ
+/// 潰さず raw に surface する（隠蔽 fallback しない）。
 #[tauri::command]
-pub async fn load_images(paths: Vec<String>) -> Vec<LoadResult> {
+pub async fn load_images(paths: Vec<String>) -> Result<Vec<LoadResult>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         paths
             .into_iter()
@@ -48,7 +52,7 @@ pub async fn load_images(paths: Vec<String>) -> Vec<LoadResult> {
             .collect()
     })
     .await
-    .unwrap_or_default()
+    .map_err(|e| format!("画像メタ読み込み処理に失敗: {e}"))
 }
 
 fn load_meta(path: &Path) -> anyhow::Result<ImageMeta> {
