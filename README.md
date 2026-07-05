@@ -3,6 +3,12 @@
 複数画像に **ガウス / ブロック(box)ブラー** を一律適用して一括保存するデスクトップアプリ。
 Tauri v2 + Rust + React/TypeScript。Windows 対応（将来 macOS）。
 
+## スクリーンショット
+
+![Batch Blur — プレビュー画面（ダークテーマ）](docs/images/screenshot-preview.png)
+
+左のファイル一覧から選択した画像にフィルタ適用結果をプレビュー表示。右パネルでフィルタ種類（ガウス／ブロック）と強さを指定し、別名（suffix）付きで一括保存する例。
+
 ## 機能（MVP）
 
 - 複数画像をドラッグ&ドロップ／ファイルダイアログで読み込み（png/jpg/jpeg/webp/bmp）
