@@ -1,5 +1,5 @@
 [package]
-name = "blur-filter"
+name = "batch-blur"
 version = "0.1.0"
 description = "複数画像に一括でガウス/ブロックブラーを適用・保存するデスクトップアプリ"
 authors = ["yAtomtom"]
@@ -8,14 +8,14 @@ rust-version = "1.77"
 
 # ライブラリとバイナリを分離: domain/imaging をライブラリとして単体テスト可能にする
 [lib]
-name = "blur_filter_lib"
+name = "batch_blur_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
