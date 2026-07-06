@@ -18,6 +18,7 @@ import { usePreview } from "../features/editor/usePreview";
 import { useExport } from "../features/batch/useExport";
 import { BatchRunner } from "../features/batch/BatchRunner";
 import { useKeybindings } from "../shared/keybindings";
+import { undoHint, redoHint } from "../shared/platform";
 import {
   canRedo,
   canUndo,
@@ -121,10 +122,10 @@ export function App() {
             {t("header.clear")}
           </button>
           <span className="spacer" />
-          <button onClick={doUndo} disabled={!canUndo(history)} title="Ctrl+Z">
+          <button onClick={doUndo} disabled={!canUndo(history)} title={undoHint}>
             {t("header.undo")}
           </button>
-          <button onClick={doRedo} disabled={!canRedo(history)} title="Ctrl+Y">
+          <button onClick={doRedo} disabled={!canRedo(history)} title={redoHint}>
             {t("header.redo")}
           </button>
           <label className="theme-select">
