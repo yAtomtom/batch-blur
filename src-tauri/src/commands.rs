@@ -52,12 +52,12 @@ pub async fn load_images(paths: Vec<String>) -> Result<Vec<LoadResult>, String> 
             .collect()
     })
     .await
-    .map_err(|e| format!("画像メタ読み込み処理に失敗: {e}"))
+    .map_err(|e| format!("failed to load image metadata: {e}"))
 }
 
 fn load_meta(path: &Path) -> anyhow::Result<ImageMeta> {
     let (width, height) = image::image_dimensions(path)
-        .with_context(|| format!("画像の寸法を取得できません: {}", path.display()))?;
+        .with_context(|| format!("cannot get image dimensions: {}", path.display()))?;
     let format = io::format_from_path(path)?;
     let file_name = path
         .file_name()
@@ -89,7 +89,7 @@ pub async fn generate_preview(
     tauri::async_runtime::spawn_blocking(move || -> Result<PreviewResult, String> {
         // 縮小ベースを取得（キャッシュヒットしなければデコード＋縮小して保存）。
         let (base, scale) = {
-            let mut guard = cache.lock().map_err(|e| format!("キャッシュロック失敗: {e}"))?;
+            let mut guard = cache.lock().map_err(|e| format!("failed to lock cache: {e}"))?;
             let hit = guard
                 .as_ref()
                 .is_some_and(|b| b.path == path_buf && b.max_dim == max_dim);
@@ -98,7 +98,7 @@ pub async fn generate_preview(
                 let (base, scale) = io::downscale_for_preview(&loaded.image, max_dim);
                 *guard = Some(PreviewBase { path: path_buf.clone(), max_dim, base, scale });
             }
-            let b = guard.as_ref().expect("直前に設定済み");
+            let b = guard.as_ref().expect("set just above");
             (b.base.clone(), b.scale)
         };
 
@@ -115,7 +115,7 @@ pub async fn generate_preview(
         })
     })
     .await
-    .map_err(|e| format!("プレビュー処理に失敗: {e}"))?
+    .map_err(|e| format!("preview processing failed: {e}"))?
 }
 
 /// 一括書き出し（MVP は逐次）。進捗は Channel で 1 ファイルごとに送る。
@@ -146,7 +146,7 @@ pub async fn export_batch(
         if matches!(save, SaveMode::SaveAs { .. }) {
             for out in &outputs {
                 if out.exists() {
-                    return Err(format!("出力先が既に存在します: {}", out.display()));
+                    return Err(format!("output already exists: {}", out.display()));
                 }
             }
         }
@@ -156,7 +156,7 @@ pub async fn export_batch(
 
         for (i, (src, out)) in sources.iter().zip(outputs.iter()).enumerate() {
             if cancel.load(Ordering::SeqCst) {
-                return Err(format!("キャンセルされました ({}/{} 完了)", i, total));
+                return Err(format!("canceled ({}/{} completed)", i, total));
             }
 
             let result = (|| -> anyhow::Result<()> {
@@ -184,14 +184,14 @@ pub async fn export_batch(
             Ok(())
         } else {
             Err(format!(
-                "{} 件の書き出しに失敗しました:\n{}",
+                "{} file(s) failed to export:\n{}",
                 failures.len(),
                 failures.join("\n")
             ))
         }
     })
     .await
-    .map_err(|e| format!("エクスポート処理に失敗: {e}"))?
+    .map_err(|e| format!("export processing failed: {e}"))?
 }
 
 /// 実行中の一括書き出しをキャンセルする。

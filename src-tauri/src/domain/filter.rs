@@ -37,7 +37,7 @@ impl AxisStrength {
     pub fn uniform(radius: u32) -> Result<Self, String> {
         if radius > MAX_RADIUS {
             return Err(format!(
-                "強度(半径) {radius} が上限 {MAX_RADIUS} を超えています"
+                "strength (radius) {radius} exceeds the maximum {MAX_RADIUS}"
             ));
         }
         Ok(Self { x: radius, y: radius })
@@ -144,7 +144,7 @@ mod tests {
     #[test]
     fn uniform_rejects_over_max() {
         let err = AxisStrength::uniform(MAX_RADIUS + 1).unwrap_err();
-        assert!(err.contains("上限"));
+        assert!(err.contains("exceeds"));
     }
 
     #[test]

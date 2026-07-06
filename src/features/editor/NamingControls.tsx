@@ -4,6 +4,7 @@
  */
 
 import { open } from "@tauri-apps/plugin-dialog";
+import { useTranslation } from "react-i18next";
 import type { SaveConfiguration } from "../../domain/SaveConfiguration";
 
 interface Props {
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export function NamingControls({ config, onChange }: Props) {
+  const { t } = useTranslation();
   const pickOutDir = async () => {
     const dir = await open({ directory: true, multiple: false });
     if (typeof dir === "string") onChange({ ...config, outDir: dir });
@@ -20,7 +22,7 @@ export function NamingControls({ config, onChange }: Props) {
   return (
     <div className="controls">
       <div className="control-group">
-        <label>保存方法</label>
+        <label>{t("naming.saveMethod")}</label>
         <div className="radio-row">
           <label>
             <input
@@ -29,7 +31,7 @@ export function NamingControls({ config, onChange }: Props) {
               checked={config.kind === "overwrite"}
               onChange={() => onChange({ ...config, kind: "overwrite" })}
             />
-            上書き保存
+            {t("naming.overwrite")}
           </label>
           <label>
             <input
@@ -38,7 +40,7 @@ export function NamingControls({ config, onChange }: Props) {
               checked={config.kind === "saveAs"}
               onChange={() => onChange({ ...config, kind: "saveAs" })}
             />
-            別名で保存
+            {t("naming.saveAs")}
           </label>
         </div>
       </div>
@@ -46,33 +48,33 @@ export function NamingControls({ config, onChange }: Props) {
       {config.kind === "saveAs" && (
         <>
           <div className="control-group">
-            <label>prefix（先頭に付与）</label>
+            <label>{t("naming.prefix")}</label>
             <input
               type="text"
               value={config.prefix}
-              placeholder="（なし）"
+              placeholder={t("naming.none")}
               onChange={(e) => onChange({ ...config, prefix: e.target.value })}
             />
           </div>
           <div className="control-group">
-            <label>suffix（末尾に付与）</label>
+            <label>{t("naming.suffix")}</label>
             <input
               type="text"
               value={config.suffix}
-              placeholder="（なし）"
+              placeholder={t("naming.none")}
               onChange={(e) => onChange({ ...config, suffix: e.target.value })}
             />
           </div>
           <div className="control-group">
-            <label>出力先</label>
+            <label>{t("naming.outDir")}</label>
             <div className="out-dir-row">
               <span className="out-dir" title={config.outDir ?? ""}>
-                {config.outDir ?? "元ファイルと同じ場所"}
+                {config.outDir ?? t("naming.sameAsSource")}
               </span>
-              <button onClick={pickOutDir}>選択</button>
+              <button onClick={pickOutDir}>{t("naming.select")}</button>
               {config.outDir && (
                 <button onClick={() => onChange({ ...config, outDir: null })}>
-                  クリア
+                  {t("naming.clear")}
                 </button>
               )}
             </div>
@@ -81,9 +83,7 @@ export function NamingControls({ config, onChange }: Props) {
       )}
 
       {config.kind === "overwrite" && (
-        <p className="warn">
-          元ファイルを直接上書きします。元に戻せません。
-        </p>
+        <p className="warn">{t("naming.overwriteWarning")}</p>
       )}
     </div>
   );

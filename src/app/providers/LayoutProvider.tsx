@@ -32,6 +32,6 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
 
 export function useLayout(): LayoutContextValue {
   const ctx = useContext(LayoutContext);
-  if (!ctx) throw new Error("useLayout は LayoutProvider の内側で使う");
+  if (!ctx) throw new Error("useLayout must be used within a LayoutProvider");
   return ctx;
 }

@@ -5,6 +5,7 @@
  * pointerup 時に onCommit で履歴へ確定する（連続入力で履歴が膨張しないように）。
  */
 
+import { useTranslation } from "react-i18next";
 import type { FilterKind, FilterSettings } from "../../ipc/types";
 
 /** UI 上の強度上限（ドメイン上限 500 より控えめに）。 */
@@ -17,6 +18,7 @@ interface Props {
 }
 
 export function FilterControls({ settings, onChange, onCommit }: Props) {
+  const { t } = useTranslation();
   const setKind = (kind: FilterKind) => {
     onChange({ ...settings, kind });
     onCommit(); // 離散操作は即確定
@@ -29,26 +31,26 @@ export function FilterControls({ settings, onChange, onCommit }: Props) {
   return (
     <div className="controls">
       <div className="control-group">
-        <label>フィルタ種類</label>
+        <label>{t("filter.kind")}</label>
         <div className="segmented">
           <button
             className={settings.kind === "gaussian" ? "active" : ""}
             onClick={() => setKind("gaussian")}
           >
-            ガウス
+            {t("filter.gaussian")}
           </button>
           <button
             className={settings.kind === "block" ? "active" : ""}
             onClick={() => setKind("block")}
           >
-            ブロック
+            {t("filter.block")}
           </button>
         </div>
       </div>
 
       <div className="control-group">
         <label>
-          強さ（半径）: <strong>{settings.radius}</strong>
+          {t("filter.radius")} <strong>{settings.radius}</strong>
         </label>
         <input
           type="range"

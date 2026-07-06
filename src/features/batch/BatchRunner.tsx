@@ -2,6 +2,7 @@
  * 一括書き出しの起動ボタン・進捗バー・結果（失敗の生エラー）表示。
  */
 
+import { useTranslation } from "react-i18next";
 import type { ExportState } from "./useExport";
 
 interface Props {
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export function BatchRunner({ count, state, onRun, onCancel }: Props) {
+  const { t } = useTranslation();
   const pct = state.total > 0 ? Math.round((state.done / state.total) * 100) : 0;
 
   return (
@@ -19,11 +21,11 @@ export function BatchRunner({ count, state, onRun, onCancel }: Props) {
       <div className="batch-actions">
         {state.running ? (
           <button className="danger" onClick={onCancel}>
-            キャンセル
+            {t("batch.cancel")}
           </button>
         ) : (
           <button className="primary" onClick={onRun} disabled={count === 0}>
-            {count} 件を一括保存
+            {t("batch.run", { n: count })}
           </button>
         )}
       </div>
@@ -47,7 +49,7 @@ export function BatchRunner({ count, state, onRun, onCancel }: Props) {
       {state.failures.length > 0 && (
         <div className="batch-failures">
           <div className="batch-failures-title">
-            失敗 {state.failures.length} 件:
+            {t("batch.failures", { n: state.failures.length })}
           </div>
           <ul>
             {state.failures.map((f) => (
@@ -65,7 +67,7 @@ export function BatchRunner({ count, state, onRun, onCancel }: Props) {
       {state.finished &&
         !state.fatalError &&
         state.failures.length === 0 && (
-          <div className="batch-ok">✓ すべて保存しました（{state.total} 件）</div>
+          <div className="batch-ok">{t("batch.done", { n: state.total })}</div>
         )}
     </div>
   );

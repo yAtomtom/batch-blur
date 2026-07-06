@@ -5,6 +5,7 @@
  * 「合成済み結果を表示する面」という単一の関心に閉じる。
  */
 
+import { useTranslation } from "react-i18next";
 import type { ImageMeta } from "../../ipc/types";
 import type { PreviewState } from "./usePreview";
 import { assetUrl } from "../../ipc/commands";
@@ -15,10 +16,11 @@ interface Props {
 }
 
 export function Canvas({ selected, preview }: Props) {
+  const { t } = useTranslation();
   if (!selected) {
     return (
       <div className="canvas empty">
-        <p>プレビューする画像を選択してください。</p>
+        <p>{t("canvas.selectPrompt")}</p>
       </div>
     );
   }
@@ -30,7 +32,9 @@ export function Canvas({ selected, preview }: Props) {
     <div className="canvas">
       <div className="canvas-viewport">
         <img className="preview-image" src={src} alt={selected.fileName} />
-        {preview.loading && <div className="preview-badge">更新中…</div>}
+        {preview.loading && (
+          <div className="preview-badge">{t("canvas.updating")}</div>
+        )}
       </div>
       {preview.error && <div className="preview-error">{preview.error}</div>}
       <div className="canvas-caption">

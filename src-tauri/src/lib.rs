@@ -23,5 +23,5 @@ pub fn run() {
             commands::cancel_export,
         ])
         .run(tauri::generate_context!())
-        .expect("Tauri アプリの起動に失敗しました");
+        .expect("failed to launch the Tauri application");
 }

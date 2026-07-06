@@ -21,22 +21,22 @@ pub struct LoadedImage {
 /// 事後条件: 返る画像は EXIF に従い正しい向き。フォーマットはパス/内容から判定。
 pub fn load_rgba(path: &Path) -> Result<LoadedImage> {
     let reader = ImageReader::open(path)
-        .with_context(|| format!("画像を開けません: {}", path.display()))?
+        .with_context(|| format!("cannot open image: {}", path.display()))?
         .with_guessed_format()
-        .with_context(|| format!("フォーマットを判定できません: {}", path.display()))?;
+        .with_context(|| format!("cannot determine format: {}", path.display()))?;
 
     let format = reader
         .format()
-        .ok_or_else(|| anyhow!("未対応または不明なフォーマット: {}", path.display()))?;
+        .ok_or_else(|| anyhow!("unsupported or unknown format: {}", path.display()))?;
 
     let mut decoder = reader
         .into_decoder()
-        .with_context(|| format!("デコーダを構築できません: {}", path.display()))?;
+        .with_context(|| format!("cannot build decoder: {}", path.display()))?;
     // EXIF 向き。取得できない場合は無変換。
     let orientation = decoder.orientation().unwrap_or(image::metadata::Orientation::NoTransforms);
 
     let mut dynimg = DynamicImage::from_decoder(decoder)
-        .with_context(|| format!("画像をデコードできません: {}", path.display()))?;
+        .with_context(|| format!("cannot decode image: {}", path.display()))?;
     dynimg.apply_orientation(orientation);
 
     let image = dynimg.to_rgba8();
@@ -47,7 +47,7 @@ pub fn load_rgba(path: &Path) -> Result<LoadedImage> {
 /// パスの拡張子からエンコード先フォーマットを決める。
 pub fn format_from_path(path: &Path) -> Result<ImageFormat> {
     ImageFormat::from_path(path)
-        .with_context(|| format!("拡張子からフォーマットを判定できません: {}", path.display()))
+        .with_context(|| format!("cannot determine format from extension: {}", path.display()))
 }
 
 /// RGBA 画像を指定フォーマットのバイト列にエンコードする。
@@ -66,26 +66,26 @@ pub fn encode_to_bytes(img: &RgbaImage, format: ImageFormat, jpeg_quality: u8) -
             let rgb = DynamicImage::ImageRgba8(img.clone()).to_rgb8();
             image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, jpeg_quality)
                 .write_image(rgb.as_raw(), w, h, image::ExtendedColorType::Rgb8)
-                .context("JPEG エンコードに失敗")?;
+                .context("JPEG encoding failed")?;
         }
         ImageFormat::Png => {
             image::codecs::png::PngEncoder::new(&mut buf)
                 .write_image(img.as_raw(), w, h, image::ExtendedColorType::Rgba8)
-                .context("PNG エンコードに失敗")?;
+                .context("PNG encoding failed")?;
         }
         ImageFormat::WebP => {
             // image クレートの WebP エンコードはロスレスのみ（隠蔽 fallback しない）。
             image::codecs::webp::WebPEncoder::new_lossless(&mut buf)
                 .write_image(img.as_raw(), w, h, image::ExtendedColorType::Rgba8)
-                .context("WebP(ロスレス) エンコードに失敗")?;
+                .context("WebP (lossless) encoding failed")?;
         }
         ImageFormat::Bmp => {
             image::codecs::bmp::BmpEncoder::new(&mut buf)
                 .write_image(img.as_raw(), w, h, image::ExtendedColorType::Rgba8)
-                .context("BMP エンコードに失敗")?;
+                .context("BMP encoding failed")?;
         }
         other => {
-            return Err(anyhow!("未対応の書き出しフォーマット: {other:?}"));
+            return Err(anyhow!("unsupported output format: {other:?}"));
         }
     }
     Ok(buf)
@@ -97,20 +97,20 @@ pub fn encode_to_bytes(img: &RgbaImage, format: ImageFormat, jpeg_quality: u8) -
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     let parent = path
         .parent()
-        .ok_or_else(|| anyhow!("親ディレクトリがありません: {}", path.display()))?;
+        .ok_or_else(|| anyhow!("no parent directory: {}", path.display()))?;
     std::fs::create_dir_all(parent)
-        .with_context(|| format!("出力ディレクトリを作成できません: {}", parent.display()))?;
+        .with_context(|| format!("cannot create output directory: {}", parent.display()))?;
 
     let file_name = path
         .file_name()
         .and_then(|n| n.to_str())
-        .ok_or_else(|| anyhow!("出力ファイル名が不正です: {}", path.display()))?;
+        .ok_or_else(|| anyhow!("invalid output file name: {}", path.display()))?;
     let tmp: PathBuf = parent.join(format!(".{file_name}.tmp"));
 
     std::fs::write(&tmp, bytes)
-        .with_context(|| format!("一時ファイルへ書き込めません: {}", tmp.display()))?;
+        .with_context(|| format!("cannot write temporary file: {}", tmp.display()))?;
     std::fs::rename(&tmp, path)
-        .with_context(|| format!("出力へ rename できません: {}", path.display()))?;
+        .with_context(|| format!("cannot rename to output: {}", path.display()))?;
     Ok(())
 }
 

@@ -3,6 +3,7 @@
  * 矢印キーでの移動は上位（キーバインド）から selectedIndex を更新して実現。
  */
 
+import { useTranslation } from "react-i18next";
 import type { ImageMeta } from "../../ipc/types";
 import type { LoadError } from "./useAssets";
 import type { SaveConfiguration } from "../../domain/SaveConfiguration";
@@ -25,12 +26,11 @@ export function FileList({
   onSelect,
   onRemove,
 }: Props) {
+  const { t } = useTranslation();
   return (
     <div className="file-list">
       {assets.length === 0 && errors.length === 0 && (
-        <p className="hint">
-          画像をドラッグ&ドロップ、または「画像を追加」から選択してください。
-        </p>
+        <p className="hint">{t("fileList.emptyHint")}</p>
       )}
 
       <ul>
@@ -46,7 +46,7 @@ export function FileList({
               </span>
               <button
                 className="remove"
-                title="一覧から除外"
+                title={t("fileList.removeFromList")}
                 onClick={(e) => {
                   e.stopPropagation();
                   onRemove(a.path);
@@ -59,7 +59,7 @@ export function FileList({
               {a.width}×{a.height} · {a.format}
             </div>
             {saveConfig.kind === "saveAs" && (
-              <div className="file-out" title="保存後のファイル名">
+              <div className="file-out" title={t("fileList.savedFileName")}>
                 → {previewOutputName(a.fileName, saveConfig)}
               </div>
             )}
@@ -69,7 +69,7 @@ export function FileList({
 
       {errors.length > 0 && (
         <div className="load-errors">
-          <div className="load-errors-title">読み込み失敗:</div>
+          <div className="load-errors-title">{t("fileList.loadFailed")}</div>
           <ul>
             {errors.map((e) => (
               <li key={e.path} className="error-row">

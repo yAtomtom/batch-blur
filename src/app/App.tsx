@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useAssets } from "../features/asset-catalog/useAssets";
 import { FileList } from "../features/asset-catalog/FileList";
 import { Canvas } from "../features/editor/Canvas";
@@ -48,6 +49,13 @@ export function App() {
   );
   const exporter = useExport();
   const { mode, setMode } = useTheme();
+  const { t, i18n } = useTranslation();
+
+  // 実効言語を <html lang> とタイトルへ反映する（初期化直後・切替時とも）。
+  useEffect(() => {
+    document.documentElement.lang = i18n.resolvedLanguage ?? "ja";
+    document.title = t("meta.title");
+  }, [i18n.resolvedLanguage, t]);
 
   // キーバインド用に最新値を参照する（コールバックを安定化させる）。
   const settingsRef = useRef(settings);
@@ -108,26 +116,36 @@ export function App() {
       <header className="app-header">
         <h1>Batch Blur</h1>
         <div className="header-actions">
-          <button onClick={pickFiles}>画像を追加</button>
+          <button onClick={pickFiles}>{t("header.addImages")}</button>
           <button onClick={clear} disabled={assets.length === 0}>
-            クリア
+            {t("header.clear")}
           </button>
           <span className="spacer" />
           <button onClick={doUndo} disabled={!canUndo(history)} title="Ctrl+Z">
-            ↶ 戻す
+            {t("header.undo")}
           </button>
           <button onClick={doRedo} disabled={!canRedo(history)} title="Ctrl+Y">
-            ↷ 進む
+            {t("header.redo")}
           </button>
           <label className="theme-select">
-            テーマ
+            {t("header.theme")}
             <select
               value={mode}
               onChange={(e) => setMode(e.target.value as ThemeMode)}
             >
-              <option value="system">システム</option>
-              <option value="light">ライト</option>
-              <option value="dark">ダーク</option>
+              <option value="system">{t("header.themeSystem")}</option>
+              <option value="light">{t("header.themeLight")}</option>
+              <option value="dark">{t("header.themeDark")}</option>
+            </select>
+          </label>
+          <label className="theme-select">
+            {t("header.language")}
+            <select
+              value={i18n.resolvedLanguage ?? "ja"}
+              onChange={(e) => void i18n.changeLanguage(e.target.value)}
+            >
+              <option value="ja">日本語</option>
+              <option value="en">English</option>
             </select>
           </label>
         </div>
@@ -166,7 +184,7 @@ export function App() {
       </div>
 
       {isDragging && (
-        <div className="drop-overlay">ここにドロップして追加</div>
+        <div className="drop-overlay">{t("drop.overlay")}</div>
       )}
     </div>
   );

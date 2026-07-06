@@ -31,7 +31,7 @@ pub enum SaveMode {
 fn validate_affix(label: &str, affix: &str) -> Result<(), String> {
     if affix.chars().any(|c| ILLEGAL_AFFIX_CHARS.contains(&c) || c.is_control()) {
         return Err(format!(
-            "{label} に使用できない文字が含まれています: {affix:?}"
+            "{label} contains invalid characters: {affix:?}"
         ));
     }
     Ok(())
@@ -48,10 +48,10 @@ fn validate_affix(label: &str, affix: &str) -> Result<(), String> {
 /// - SaveAs ⇒ `dir / (prefix + stem + suffix [+ "." + ext])`。**拡張子は変えない**。
 pub fn resolve_output_path(source: &Path, mode: &SaveMode) -> Result<PathBuf, String> {
     if !source.is_absolute() {
-        return Err(format!("入力パスが絶対パスではありません: {}", source.display()));
+        return Err(format!("input path is not absolute: {}", source.display()));
     }
     if source.file_name().is_none() {
-        return Err(format!("入力パスにファイル名がありません: {}", source.display()));
+        return Err(format!("input path has no file name: {}", source.display()));
     }
 
     match mode {
@@ -63,14 +63,14 @@ pub fn resolve_output_path(source: &Path, mode: &SaveMode) -> Result<PathBuf, St
             let stem = source
                 .file_stem()
                 .and_then(|s| s.to_str())
-                .ok_or_else(|| format!("ファイル名(stem)を取得できません: {}", source.display()))?;
+                .ok_or_else(|| format!("cannot get file stem: {}", source.display()))?;
 
             let dir: PathBuf = match out_dir {
                 Some(d) => d.clone(),
                 None => source
                     .parent()
                     .map(|p| p.to_path_buf())
-                    .ok_or_else(|| format!("親ディレクトリを取得できません: {}", source.display()))?,
+                    .ok_or_else(|| format!("cannot get parent directory: {}", source.display()))?,
             };
 
             let filename = match source.extension().and_then(|e| e.to_str()) {
@@ -92,7 +92,7 @@ pub fn check_no_collisions(outputs: &[PathBuf]) -> Result<(), String> {
     for out in outputs {
         let key = out.to_string_lossy().to_lowercase();
         if !seen.insert(key) {
-            return Err(format!("出力パスが衝突しています: {}", out.display()));
+            return Err(format!("output path collision: {}", out.display()));
         }
     }
     Ok(())

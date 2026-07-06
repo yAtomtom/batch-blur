@@ -93,7 +93,7 @@ fn box_blur_rgba(img: &RgbaImage, radius: u32) -> RgbaImage {
         }
     }
 
-    RgbaImage::from_raw(w, h, out).expect("出力バッファ長は寸法と一致する")
+    RgbaImage::from_raw(w, h, out).expect("output buffer length matches dimensions")
 }
 
 /// 座標を `[0, n-1]` にクランプ（エッジ複製）。
