@@ -1,7 +1,7 @@
 # Batch Blur
 
 複数画像に **ガウス / ブロック(box)ブラー** を一律適用して一括保存するデスクトップアプリ。
-Tauri v2 + Rust + React/TypeScript。Windows 対応（将来 macOS）。
+Tauri v2 + Rust + React/TypeScript。Windows / macOS 対応。
 
 ## スクリーンショット
 
@@ -51,12 +51,13 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ### 2. OS 依存（開発/ビルドに必要）
 
 - **Windows**: [Microsoft C++ Build Tools] と WebView2（Win11 は同梱）。
+- **macOS**: Xcode Command Line Tools（`xcode-select --install`）。WebView は WKWebView が
+  OS 同梱のため追加導入は不要。
 - **Linux/WSL でビルド確認する場合**（GUI は WSLg 必須）:
   ```bash
   sudo apt update && sudo apt install -y libwebkit2gtk-4.1-dev build-essential \
     curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev pkg-config
   ```
-- **macOS（将来）**: Xcode Command Line Tools。
 
 ### 3. アイコン生成（初回のみ）
 
@@ -71,8 +72,16 @@ npx tauri icon path/to/icon.png
 ```bash
 npm install            # 導入済み
 npm run tauri dev      # 開発起動（Vite + Rust ホットリロード）
-npm run tauri build    # リリースビルド（Windows は NSIS インストーラ）
+npm run tauri build    # リリースビルド
 ```
+
+`npm run tauri build` の成果物は `src-tauri/target/release/bundle/` に出力される:
+
+- **Windows**: NSIS インストーラ（`bundle/nsis/*.exe`）
+- **macOS**: アプリ本体（`bundle/macos/*.app`）とディスクイメージ（`bundle/dmg/*.dmg`）
+
+macOS ビルドは署名・公証（Apple Developer 証明書）を行っていないため、初回起動時は
+Gatekeeper に阻まれる。その場合は `.app` を右クリック→「開く」で起動できる。
 
 ## テスト
 
