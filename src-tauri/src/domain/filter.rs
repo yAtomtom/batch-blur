@@ -40,7 +40,10 @@ impl AxisStrength {
                 "strength (radius) {radius} exceeds the maximum {MAX_RADIUS}"
             ));
         }
-        Ok(Self { x: radius, y: radius })
+        Ok(Self {
+            x: radius,
+            y: radius,
+        })
     }
 
     pub fn x(&self) -> u32 {

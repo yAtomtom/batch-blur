@@ -20,9 +20,7 @@ pub fn blur_rgba(img: &RgbaImage, kind: FilterKind, radius: u32) -> RgbaImage {
         return img.clone();
     }
     match kind {
-        FilterKind::Gaussian => {
-            imageproc::filter::gaussian_blur_f32(img, radius_to_sigma(radius))
-        }
+        FilterKind::Gaussian => imageproc::filter::gaussian_blur_f32(img, radius_to_sigma(radius)),
         FilterKind::Block => box_blur_rgba(img, radius),
     }
 }

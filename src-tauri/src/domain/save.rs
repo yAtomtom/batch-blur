@@ -29,10 +29,11 @@ pub enum SaveMode {
 
 /// affix（prefix/suffix）が不正文字・パス区切りを含まないか検証する。
 fn validate_affix(label: &str, affix: &str) -> Result<(), String> {
-    if affix.chars().any(|c| ILLEGAL_AFFIX_CHARS.contains(&c) || c.is_control()) {
-        return Err(format!(
-            "{label} contains invalid characters: {affix:?}"
-        ));
+    if affix
+        .chars()
+        .any(|c| ILLEGAL_AFFIX_CHARS.contains(&c) || c.is_control())
+    {
+        return Err(format!("{label} contains invalid characters: {affix:?}"));
     }
     Ok(())
 }
@@ -56,7 +57,11 @@ pub fn resolve_output_path(source: &Path, mode: &SaveMode) -> Result<PathBuf, St
 
     match mode {
         SaveMode::Overwrite => Ok(source.to_path_buf()),
-        SaveMode::SaveAs { prefix, suffix, out_dir } => {
+        SaveMode::SaveAs {
+            prefix,
+            suffix,
+            out_dir,
+        } => {
             validate_affix("prefix", prefix)?;
             validate_affix("suffix", suffix)?;
 

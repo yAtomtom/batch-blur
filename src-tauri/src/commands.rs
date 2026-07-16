@@ -1,35 +1,50 @@
 //! Tauri コマンド（IPC 境界の薄いアダプタ）。
 //!
 //! CPU/IO を伴う処理は `spawn_blocking` に載せ、async ランタイムと WebView を
-//! 止めない。失敗は raw なエラー文字列を surface する（隠蔽 fallback しない）。
+//! 止めない。ストレージ入出力は `AppState` に注入した [`ImageRepository`] 経由で行い、
+//! FS への直接依存を持たない（将来 Google Drive 等へ差し替え可能）。
+//! 失敗は raw なエラー文字列を surface する（隠蔽 fallback しない）。
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use anyhow::Context;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use image::{ImageFormat, RgbaImage};
 use tauri::ipc::Channel;
 use tauri::State;
 
 use crate::domain::save::{self, SaveMode};
-use crate::imaging::{blur, io};
+use crate::imaging::{blur, codec};
+use crate::repository::local_fs::LocalFileSystemRepository;
+use crate::repository::{ImageRepository, ResourceLocation};
 use crate::types::{ExportProgress, FilterSettings, ImageMeta, LoadResult, PreviewResult};
 
 /// プレビューの縮小ベースをキャッシュ（LRU(1)）。スライダー連打で再デコード/再縮小を避ける。
 struct PreviewBase {
-    path: PathBuf,
+    /// キャッシュキー: ロケータ（生文字列）の等価比較で判定（正規化はしない）。
+    location: ResourceLocation,
     max_dim: u32,
     base: RgbaImage,
     scale: f32,
 }
 
-/// アプリ状態。キャンセルフラグとプレビューキャッシュを共有する。
-#[derive(Default)]
+/// アプリ状態。キャンセルフラグ・プレビューキャッシュ・ストレージ実装を共有する。
 pub struct AppState {
     cancel: Arc<AtomicBool>,
     preview_cache: Arc<Mutex<Option<PreviewBase>>>,
+    /// ストレージポート。既定はローカルFS実装（将来クラウド実装へ差し替え可能）。
+    repository: Arc<dyn ImageRepository>,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self {
+            cancel: Arc::new(AtomicBool::new(false)),
+            preview_cache: Arc::new(Mutex::new(None)),
+            repository: Arc::new(LocalFileSystemRepository::new()),
+        }
+    }
 }
 
 /// 複数画像のメタ情報を読み込む（ヘッダのみ、フル デコードしない）。
@@ -38,16 +53,20 @@ pub struct AppState {
 /// 一方 `spawn_blocking` の join 失敗（パニック等のインフラ障害）は空配列へ
 /// 潰さず raw に surface する（隠蔽 fallback しない）。
 #[tauri::command]
-pub async fn load_images(paths: Vec<String>) -> Result<Vec<LoadResult>, String> {
+pub async fn load_images(
+    paths: Vec<String>,
+    state: State<'_, AppState>,
+) -> Result<Vec<LoadResult>, String> {
+    let repo = state.repository.clone();
     tauri::async_runtime::spawn_blocking(move || {
         paths
             .into_iter()
-            .map(|p| {
-                let path = PathBuf::from(&p);
-                match load_meta(&path) {
-                    Ok(meta) => LoadResult::Ok { meta },
-                    Err(e) => LoadResult::Error { path: p, error: format!("{e:#}") },
-                }
+            .map(|p| match load_meta(repo.as_ref(), &p) {
+                Ok(meta) => LoadResult::Ok { meta },
+                Err(e) => LoadResult::Error {
+                    path: p,
+                    error: format!("{e:#}"),
+                },
             })
             .collect()
     })
@@ -55,21 +74,15 @@ pub async fn load_images(paths: Vec<String>) -> Result<Vec<LoadResult>, String> 
     .map_err(|e| format!("failed to load image metadata: {e}"))
 }
 
-fn load_meta(path: &Path) -> anyhow::Result<ImageMeta> {
-    let (width, height) = image::image_dimensions(path)
-        .with_context(|| format!("cannot get image dimensions: {}", path.display()))?;
-    let format = io::format_from_path(path)?;
-    let file_name = path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or_default()
-        .to_string();
+fn load_meta(repo: &dyn ImageRepository, path: &str) -> anyhow::Result<ImageMeta> {
+    let loc = ResourceLocation::try_from(path.to_string())?;
+    let meta = repo.metadata(&loc)?;
     Ok(ImageMeta {
-        path: path.to_string_lossy().to_string(),
-        file_name,
-        width,
-        height,
-        format: format!("{format:?}"),
+        path: loc.as_str().to_string(),
+        file_name: meta.name,
+        width: meta.width,
+        height: meta.height,
+        format: format!("{:?}", meta.format),
     })
 }
 
@@ -84,19 +97,30 @@ pub async fn generate_preview(
 ) -> Result<PreviewResult, String> {
     let stack = settings.to_stack()?;
     let cache = state.preview_cache.clone();
-    let path_buf = PathBuf::from(&path);
+    let repo = state.repository.clone();
+    let location = ResourceLocation::try_from(path).map_err(|e| format!("{e:#}"))?;
 
     tauri::async_runtime::spawn_blocking(move || -> Result<PreviewResult, String> {
-        // 縮小ベースを取得（キャッシュヒットしなければデコード＋縮小して保存）。
+        // 縮小ベースを取得（キャッシュヒットしなければ read＋デコード＋縮小して保存）。
         let (base, scale) = {
-            let mut guard = cache.lock().map_err(|e| format!("failed to lock cache: {e}"))?;
+            let mut guard = cache
+                .lock()
+                .map_err(|e| format!("failed to lock cache: {e}"))?;
             let hit = guard
                 .as_ref()
-                .is_some_and(|b| b.path == path_buf && b.max_dim == max_dim);
+                .is_some_and(|b| b.location == location && b.max_dim == max_dim);
             if !hit {
-                let loaded = io::load_rgba(&path_buf).map_err(|e| format!("{e:#}"))?;
-                let (base, scale) = io::downscale_for_preview(&loaded.image, max_dim);
-                *guard = Some(PreviewBase { path: path_buf.clone(), max_dim, base, scale });
+                let bytes = repo.read(&location).map_err(|e| format!("{e:#}"))?;
+                // デコード失敗にロケータ文脈を付す（どのファイルで失敗したか追跡できるように）。
+                let loaded = codec::decode_rgba(&bytes)
+                    .map_err(|e| format!("{}: {e:#}", location.as_str()))?;
+                let (base, scale) = codec::downscale_for_preview(&loaded.image, max_dim);
+                *guard = Some(PreviewBase {
+                    location: location.clone(),
+                    max_dim,
+                    base,
+                    scale,
+                });
             }
             let b = guard.as_ref().expect("set just above");
             (b.base.clone(), b.scale)
@@ -104,7 +128,8 @@ pub async fn generate_preview(
 
         // 縮小ベースへ半径を scale 倍して適用（フルサイズと見た目を一致させる）。
         let blurred = blur::apply_stack_scaled(&base, &stack, scale);
-        let png = io::encode_to_bytes(&blurred, ImageFormat::Png, 90).map_err(|e| format!("{e:#}"))?;
+        let png =
+            codec::encode_to_bytes(&blurred, ImageFormat::Png, 90).map_err(|e| format!("{e:#}"))?;
         let data_url = format!("data:image/png;base64,{}", BASE64.encode(&png));
 
         Ok(PreviewResult {
@@ -131,6 +156,7 @@ pub async fn export_batch(
     let stack = settings.to_stack()?;
     state.cancel.store(false, Ordering::SeqCst);
     let cancel = state.cancel.clone();
+    let repo = state.repository.clone();
 
     tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
         let sources: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
@@ -145,7 +171,9 @@ pub async fn export_batch(
         // 別名保存で出力先が既存なら loud に停止（上書きは Overwrite モードでのみ意図的）。
         if matches!(save, SaveMode::SaveAs { .. }) {
             for out in &outputs {
-                if out.exists() {
+                let out_loc =
+                    ResourceLocation::try_from(out.as_path()).map_err(|e| format!("{e:#}"))?;
+                if repo.exists(&out_loc).map_err(|e| format!("{e:#}"))? {
                     return Err(format!("output already exists: {}", out.display()));
                 }
             }
@@ -160,11 +188,14 @@ pub async fn export_batch(
             }
 
             let result = (|| -> anyhow::Result<()> {
-                let loaded = io::load_rgba(src)?;
+                let src_loc = ResourceLocation::try_from(src.as_path())?;
+                let out_loc = ResourceLocation::try_from(out.as_path())?;
+                let bytes = repo.read(&src_loc)?;
+                let loaded = codec::decode_rgba(&bytes)?;
                 let blurred = blur::apply_stack(&loaded.image, &stack);
-                let out_format = io::format_from_path(out)?;
-                let bytes = io::encode_to_bytes(&blurred, out_format, jpeg_quality)?;
-                io::write_atomic(out, &bytes)?;
+                let out_format = codec::format_from_name(out)?;
+                let out_bytes = codec::encode_to_bytes(&blurred, out_format, jpeg_quality)?;
+                repo.write(&out_loc, &out_bytes)?;
                 Ok(())
             })();
 

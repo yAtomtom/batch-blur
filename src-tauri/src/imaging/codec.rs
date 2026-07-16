@@ -1,9 +1,11 @@
-//! 画像の入出力（imaging アダプタ）。
+//! 画像コーデック（imaging アダプタ・純粋 bytes<->pixels）。
 //!
-//! デコード（EXIF 向き正規化つき）、フォーマット別エンコード、原子的書き込み、
-//! プレビュー用ダウンスケールを提供する。失敗は raw なエラーを surface する。
+//! バイト列からのデコード（EXIF 向き正規化つき）、フォーマット別エンコード、
+//! プレビュー用ダウンスケールを提供する。ファイルシステムアクセスは持たない
+//! （読み書きは repository モジュールが担う）。失敗は raw なエラーを surface する。
 
-use std::path::{Path, PathBuf};
+use std::io::Cursor;
+use std::path::Path;
 
 use anyhow::{anyhow, Context, Result};
 use image::{DynamicImage, ImageDecoder, ImageEncoder, ImageFormat, ImageReader, RgbaImage};
@@ -16,36 +18,42 @@ pub struct LoadedImage {
     pub height: u32,
 }
 
-/// パスから画像を RGBA8 でデコードし、EXIF Orientation を正規化する。
+/// バイト列を画像として RGBA8 でデコードし、EXIF Orientation を正規化する。
 ///
-/// 事後条件: 返る画像は EXIF に従い正しい向き。フォーマットはパス/内容から判定。
-pub fn load_rgba(path: &Path) -> Result<LoadedImage> {
-    let reader = ImageReader::open(path)
-        .with_context(|| format!("cannot open image: {}", path.display()))?
+/// 事前条件: `bytes` は 1 枚の画像として解釈可能。
+/// 事後条件: 返る画像は EXIF に従い正しい向き。フォーマットは内容から判定。
+pub fn decode_rgba(bytes: &[u8]) -> Result<LoadedImage> {
+    let reader = ImageReader::new(Cursor::new(bytes))
         .with_guessed_format()
-        .with_context(|| format!("cannot determine format: {}", path.display()))?;
+        .context("cannot determine image format")?;
 
     let format = reader
         .format()
-        .ok_or_else(|| anyhow!("unsupported or unknown format: {}", path.display()))?;
+        .ok_or_else(|| anyhow!("unsupported or unknown image format"))?;
 
-    let mut decoder = reader
-        .into_decoder()
-        .with_context(|| format!("cannot build decoder: {}", path.display()))?;
+    let mut decoder = reader.into_decoder().context("cannot build decoder")?;
     // EXIF 向き。取得できない場合は無変換。
-    let orientation = decoder.orientation().unwrap_or(image::metadata::Orientation::NoTransforms);
+    let orientation = decoder
+        .orientation()
+        .unwrap_or(image::metadata::Orientation::NoTransforms);
 
-    let mut dynimg = DynamicImage::from_decoder(decoder)
-        .with_context(|| format!("cannot decode image: {}", path.display()))?;
+    let mut dynimg = DynamicImage::from_decoder(decoder).context("cannot decode image")?;
     dynimg.apply_orientation(orientation);
 
     let image = dynimg.to_rgba8();
     let (width, height) = image.dimensions();
-    Ok(LoadedImage { image, format, width, height })
+    Ok(LoadedImage {
+        image,
+        format,
+        width,
+        height,
+    })
 }
 
-/// パスの拡張子からエンコード先フォーマットを決める。
-pub fn format_from_path(path: &Path) -> Result<ImageFormat> {
+/// パス（名前）の拡張子からエンコード先フォーマットを決める。
+///
+/// 拡張子不明時は loud にエラー（内容推定 fallback はしない ＝ Raw Data Now）。
+pub fn format_from_name(path: &Path) -> Result<ImageFormat> {
     ImageFormat::from_path(path)
         .with_context(|| format!("cannot determine format from extension: {}", path.display()))
 }
@@ -89,29 +97,6 @@ pub fn encode_to_bytes(img: &RgbaImage, format: ImageFormat, jpeg_quality: u8) -
         }
     }
     Ok(buf)
-}
-
-/// 同一ディレクトリの一時ファイルへ書いてから rename する原子的書き込み。
-///
-/// 途中クラッシュで元ファイルを壊さない。temp は同ボリュームなので rename は原子的。
-pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
-    let parent = path
-        .parent()
-        .ok_or_else(|| anyhow!("no parent directory: {}", path.display()))?;
-    std::fs::create_dir_all(parent)
-        .with_context(|| format!("cannot create output directory: {}", parent.display()))?;
-
-    let file_name = path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .ok_or_else(|| anyhow!("invalid output file name: {}", path.display()))?;
-    let tmp: PathBuf = parent.join(format!(".{file_name}.tmp"));
-
-    std::fs::write(&tmp, bytes)
-        .with_context(|| format!("cannot write temporary file: {}", tmp.display()))?;
-    std::fs::rename(&tmp, path)
-        .with_context(|| format!("cannot rename to output: {}", path.display()))?;
-    Ok(())
 }
 
 /// 長辺が `max_dim` 以下になる縮小率を返す（既に十分小さければ 1.0）。
@@ -165,7 +150,55 @@ mod tests {
     fn png_encode_decodes_back_to_same_pixels() {
         let img = RgbaImage::from_pixel(8, 8, Rgba([10, 20, 30, 255]));
         let bytes = encode_to_bytes(&img, ImageFormat::Png, 90).unwrap();
-        let decoded = image::load_from_memory(&bytes).unwrap().to_rgba8();
-        assert_eq!(decoded, img);
+        let decoded = decode_rgba(&bytes).unwrap();
+        assert_eq!(decoded.image, img);
+        assert_eq!(decoded.format, ImageFormat::Png);
+    }
+
+    /// EXIF Orientation タグ付き JPEG を合成する（TIFF は little-endian, IFD0 に Orientation 1 件）。
+    ///
+    /// SOI 直後に APP1(Exif) セグメントを差し込み、後段の実画像データはエンコーダ出力を流用する。
+    fn jpeg_with_orientation(img: &RgbaImage, orientation: u8) -> Vec<u8> {
+        let base = encode_to_bytes(img, ImageFormat::Jpeg, 90).unwrap();
+
+        let mut payload: Vec<u8> = Vec::new();
+        payload.extend_from_slice(b"Exif\0\0");
+        // TIFF ヘッダ (LE): "II", 42, IFD0 offset = 8
+        payload.extend_from_slice(&[0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00]);
+        payload.extend_from_slice(&[0x01, 0x00]); // IFD0 エントリ数 = 1
+        payload.extend_from_slice(&[0x12, 0x01]); // tag 0x0112 (Orientation)
+        payload.extend_from_slice(&[0x03, 0x00]); // type = SHORT
+        payload.extend_from_slice(&[0x01, 0x00, 0x00, 0x00]); // count = 1
+        payload.extend_from_slice(&[orientation, 0x00, 0x00, 0x00]); // value (左詰め)
+        payload.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]); // 次 IFD offset = なし
+
+        let seg_len = (payload.len() + 2) as u16; // 長さフィールド自身を含む
+
+        let mut out: Vec<u8> = Vec::new();
+        out.extend_from_slice(&base[0..2]); // SOI (FF D8)
+        out.extend_from_slice(&[0xFF, 0xE1]); // APP1 marker
+        out.extend_from_slice(&seg_len.to_be_bytes());
+        out.extend_from_slice(&payload);
+        out.extend_from_slice(&base[2..]); // 残り（元の APP0 以降）
+        out
+    }
+
+    #[test]
+    fn decode_honors_exif_orientation() {
+        let img = RgbaImage::from_pixel(4, 2, Rgba([200, 50, 50, 255]));
+
+        // Orientation 6 = 90°回転 → 寸法が入れ替わる (4x2 -> 2x4)。
+        let rotated = jpeg_with_orientation(&img, 6);
+        let loaded = decode_rgba(&rotated).unwrap();
+        assert_eq!(
+            (loaded.width, loaded.height),
+            (2, 4),
+            "EXIF orientation 6 は寸法を入れ替えるべき"
+        );
+
+        // 制御: Orientation 1 (NoTransforms) は寸法維持。
+        let upright = jpeg_with_orientation(&img, 1);
+        let loaded2 = decode_rgba(&upright).unwrap();
+        assert_eq!((loaded2.width, loaded2.height), (4, 2));
     }
 }

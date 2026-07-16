@@ -1,12 +1,14 @@
 //! Batch Blur バックエンド。
 //!
 //! 層構成:
-//! - `domain`  … 純粋コア（フィルタ合成・保存ルール, image 非依存）
-//! - `imaging` … アダプタ（image/imageproc による実ピクセル・実ファイル）
-//! - `commands`/`types` … Tauri IPC 境界
+//! - `domain`     … 純粋コア（フィルタ合成・保存ルール, image 非依存）
+//! - `imaging`    … 純粋コーデック（bytes<->pixels）＋ブラーカーネル（image/imageproc 依存）
+//! - `repository` … 画像ストレージのポート＋アダプタ（ローカルFS; 将来クラウド拡張）
+//! - `commands`/`types` … Tauri IPC 境界（repository を DI して利用）
 
 pub mod domain;
 pub mod imaging;
+pub mod repository;
 pub mod types;
 
 mod commands;
