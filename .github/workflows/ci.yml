@@ -29,6 +29,11 @@ jobs:
         working-directory: src-tauri
     steps:
       - uses: actions/checkout@v4
+      # generate_context! は frontendDist(../dist) の存在をコンパイル時に要求する。
+      # dist は gitignore 済みのビルド成果物であり、Rust の検証に中身は不要。
+      - name: Create frontendDist placeholder
+        working-directory: .
+        run: mkdir -p dist && touch dist/index.html
       # cargo test/clippy は tauri をコンパイルするため webkit2gtk 等が必要（Tauri v2 公式手順）
       - name: Install system dependencies
         run: |
