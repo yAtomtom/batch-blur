@@ -34,6 +34,7 @@ export const ja = {
     removeFromList: "一覧から除外",
     savedFileName: "保存後のファイル名",
     loadFailed: "読み込み失敗:",
+    unsupportedType: "対応していない形式です（png / jpg / jpeg / webp / bmp のみ）",
   },
   canvas: {
     selectPrompt: "プレビューする画像を選択してください。",
@@ -92,6 +93,7 @@ export const en = {
     removeFromList: "Remove from list",
     savedFileName: "Output file name",
     loadFailed: "Failed to load:",
+    unsupportedType: "Unsupported file type (png / jpg / jpeg / webp / bmp only)",
   },
   canvas: {
     selectPrompt: "Select an image to preview.",
