@@ -88,8 +88,16 @@ Gatekeeper に阻まれる。その場合は `.app` を右クリック→「開�
 ```bash
 npm test                        # フロント: EditHistory の単体テスト（vitest）
 npx tsc --noEmit                # 型チェック
-cd src-tauri && cargo test      # Rust: domain/imaging の単体テスト
+npx biome check .               # フロント: Lint + Format チェック（--write で自動修正）
+
+cd src-tauri
+cargo test                      # Rust: domain/imaging の単体テスト
+cargo fmt --check               # Rust: Format チェック
+cargo clippy --all-targets --all-features -- -D warnings  # Rust: Lint
 ```
+
+上記と同じチェックが GitHub Actions（`.github/workflows/ci.yml`）で
+main への push と Pull Request のたびに実行される。
 
 ## 検証状況（このコミット時点）
 
