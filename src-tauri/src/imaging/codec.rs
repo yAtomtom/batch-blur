@@ -16,12 +16,15 @@ pub struct LoadedImage {
     pub format: ImageFormat,
     pub width: u32,
     pub height: u32,
+    /// 原本の ICC カラープロファイル（存在すれば）。書き出し時に引き継ぐ。
+    pub icc: Option<Vec<u8>>,
 }
 
 /// バイト列を画像として RGBA8 でデコードし、EXIF Orientation を正規化する。
 ///
 /// 事前条件: `bytes` は 1 枚の画像として解釈可能。
 /// 事後条件: 返る画像は EXIF に従い正しい向き。フォーマットは内容から判定。
+/// `icc` は原本の ICC プロファイル（存在すれば Some）。
 pub fn decode_rgba(bytes: &[u8]) -> Result<LoadedImage> {
     let reader = ImageReader::new(Cursor::new(bytes))
         .with_guessed_format()
@@ -36,6 +39,8 @@ pub fn decode_rgba(bytes: &[u8]) -> Result<LoadedImage> {
     let orientation = decoder
         .orientation()
         .unwrap_or(image::metadata::Orientation::NoTransforms);
+    // 色化けを黙って起こさないため、ICC は抽出して書き出しへ引き継ぐ。
+    let icc = decoder.icc_profile().context("cannot read ICC profile")?;
 
     let mut dynimg = DynamicImage::from_decoder(decoder).context("cannot decode image")?;
     dynimg.apply_orientation(orientation);
@@ -47,6 +52,7 @@ pub fn decode_rgba(bytes: &[u8]) -> Result<LoadedImage> {
         format,
         width,
         height,
+        icc,
     })
 }
 
@@ -63,7 +69,14 @@ pub fn format_from_name(path: &Path) -> Result<ImageFormat> {
 /// - JPEG: アルファを落とし RGB で `jpeg_quality` エンコード。
 /// - WebP: `image` の制約により **ロスレス** のみ（明示・隠蔽 fallback しない）。
 /// - PNG/BMP: そのまま RGBA。
-pub fn encode_to_bytes(img: &RgbaImage, format: ImageFormat, jpeg_quality: u8) -> Result<Vec<u8>> {
+/// - `icc` があれば埋め込む（PNG/JPEG/WebP）。埋め込めないフォーマット（BMP）へ
+///   ICC 付きで書こうとした場合は loud にエラー（黙って色情報を捨てない）。
+pub fn encode_to_bytes(
+    img: &RgbaImage,
+    format: ImageFormat,
+    jpeg_quality: u8,
+    icc: Option<&[u8]>,
+) -> Result<Vec<u8>> {
     let (w, h) = img.dimensions();
     let mut buf: Vec<u8> = Vec::new();
 
@@ -72,24 +85,42 @@ pub fn encode_to_bytes(img: &RgbaImage, format: ImageFormat, jpeg_quality: u8) -
         ImageFormat::Jpeg => {
             // JPEG はアルファを持てないので RGB に変換する。
             let rgb = DynamicImage::ImageRgba8(img.clone()).to_rgb8();
-            image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, jpeg_quality)
-                .write_image(rgb.as_raw(), w, h, image::ExtendedColorType::Rgb8)
+            let mut enc =
+                image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, jpeg_quality);
+            if let Some(profile) = icc {
+                enc.set_icc_profile(profile.to_vec())
+                    .context("cannot embed ICC profile into JPEG")?;
+            }
+            enc.write_image(rgb.as_raw(), w, h, image::ExtendedColorType::Rgb8)
                 .context("JPEG encoding failed")?;
         }
         ImageFormat::Png => {
-            image::codecs::png::PngEncoder::new(&mut buf)
-                .write_image(img.as_raw(), w, h, image::ExtendedColorType::Rgba8)
+            let mut enc = image::codecs::png::PngEncoder::new(&mut buf);
+            if let Some(profile) = icc {
+                enc.set_icc_profile(profile.to_vec())
+                    .context("cannot embed ICC profile into PNG")?;
+            }
+            enc.write_image(img.as_raw(), w, h, image::ExtendedColorType::Rgba8)
                 .context("PNG encoding failed")?;
         }
         ImageFormat::WebP => {
             // image クレートの WebP エンコードはロスレスのみ（隠蔽 fallback しない）。
-            image::codecs::webp::WebPEncoder::new_lossless(&mut buf)
-                .write_image(img.as_raw(), w, h, image::ExtendedColorType::Rgba8)
+            let mut enc = image::codecs::webp::WebPEncoder::new_lossless(&mut buf);
+            if let Some(profile) = icc {
+                enc.set_icc_profile(profile.to_vec())
+                    .context("cannot embed ICC profile into WebP")?;
+            }
+            enc.write_image(img.as_raw(), w, h, image::ExtendedColorType::Rgba8)
                 .context("WebP (lossless) encoding failed")?;
         }
         ImageFormat::Bmp => {
-            image::codecs::bmp::BmpEncoder::new(&mut buf)
-                .write_image(img.as_raw(), w, h, image::ExtendedColorType::Rgba8)
+            let mut enc = image::codecs::bmp::BmpEncoder::new(&mut buf);
+            if let Some(profile) = icc {
+                // BMP は ICC を保持できない。黙って捨てず per-file エラーとして表面化する。
+                enc.set_icc_profile(profile.to_vec())
+                    .context("BMP output cannot preserve the ICC color profile")?;
+            }
+            enc.write_image(img.as_raw(), w, h, image::ExtendedColorType::Rgba8)
                 .context("BMP encoding failed")?;
         }
         other => {
@@ -149,17 +180,43 @@ mod tests {
     #[test]
     fn png_encode_decodes_back_to_same_pixels() {
         let img = RgbaImage::from_pixel(8, 8, Rgba([10, 20, 30, 255]));
-        let bytes = encode_to_bytes(&img, ImageFormat::Png, 90).unwrap();
+        let bytes = encode_to_bytes(&img, ImageFormat::Png, 90, None).unwrap();
         let decoded = decode_rgba(&bytes).unwrap();
         assert_eq!(decoded.image, img);
         assert_eq!(decoded.format, ImageFormat::Png);
+        assert_eq!(decoded.icc, None, "ICC なしの原本は None のまま");
+    }
+
+    #[test]
+    fn icc_profile_roundtrips_for_supported_formats() {
+        let img = RgbaImage::from_pixel(4, 4, Rgba([10, 20, 30, 255]));
+        let icc = vec![0xAAu8, 0xBB, 0xCC, 0xDD, 0xEE];
+        for format in [ImageFormat::Png, ImageFormat::Jpeg, ImageFormat::WebP] {
+            let bytes = encode_to_bytes(&img, format, 90, Some(&icc)).unwrap();
+            let decoded = decode_rgba(&bytes).unwrap();
+            assert_eq!(
+                decoded.icc.as_deref(),
+                Some(icc.as_slice()),
+                "{format:?} は ICC を保持すべき"
+            );
+        }
+    }
+
+    #[test]
+    fn bmp_with_icc_profile_fails_loudly() {
+        // BMP は ICC を保持できない。黙って捨てるのではなくエラーで表面化する。
+        let img = RgbaImage::from_pixel(2, 2, Rgba([1, 2, 3, 255]));
+        let res = encode_to_bytes(&img, ImageFormat::Bmp, 90, Some(&[0u8; 4]));
+        assert!(res.is_err());
+        // ICC なしなら従来どおり成功する。
+        assert!(encode_to_bytes(&img, ImageFormat::Bmp, 90, None).is_ok());
     }
 
     /// EXIF Orientation タグ付き JPEG を合成する（TIFF は little-endian, IFD0 に Orientation 1 件）。
     ///
     /// SOI 直後に APP1(Exif) セグメントを差し込み、後段の実画像データはエンコーダ出力を流用する。
     fn jpeg_with_orientation(img: &RgbaImage, orientation: u8) -> Vec<u8> {
-        let base = encode_to_bytes(img, ImageFormat::Jpeg, 90).unwrap();
+        let base = encode_to_bytes(img, ImageFormat::Jpeg, 90, None).unwrap();
 
         let mut payload: Vec<u8> = Vec::new();
         payload.extend_from_slice(b"Exif\0\0");

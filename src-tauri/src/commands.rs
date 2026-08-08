@@ -30,6 +30,8 @@ struct PreviewBase {
     max_dim: u32,
     base: RgbaImage,
     scale: f32,
+    /// 原本の ICC プロファイル。プレビュー PNG にも埋めて書き出しと色を揃える。
+    icc: Option<Vec<u8>>,
 }
 
 /// アプリ状態。キャンセルフラグ・プレビューキャッシュ・ストレージ実装を共有する。
@@ -105,7 +107,7 @@ pub async fn generate_preview(
 
     tauri::async_runtime::spawn_blocking(move || -> Result<PreviewResult, String> {
         // 縮小ベースを取得（キャッシュヒットしなければ read＋デコード＋縮小して保存）。
-        let (base, scale) = {
+        let (base, scale, icc) = {
             let mut guard = cache
                 .lock()
                 .map_err(|e| format!("failed to lock cache: {e}"))?;
@@ -123,16 +125,17 @@ pub async fn generate_preview(
                     max_dim,
                     base,
                     scale,
+                    icc: loaded.icc,
                 });
             }
             let b = guard.as_ref().expect("set just above");
-            (b.base.clone(), b.scale)
+            (b.base.clone(), b.scale, b.icc.clone())
         };
 
         // 縮小ベースへ半径を scale 倍して適用（フルサイズと見た目を一致させる）。
         let blurred = blur::apply_stack_scaled(&base, &stack, scale);
-        let png =
-            codec::encode_to_bytes(&blurred, ImageFormat::Png, 90).map_err(|e| format!("{e:#}"))?;
+        let png = codec::encode_to_bytes(&blurred, ImageFormat::Png, 90, icc.as_deref())
+            .map_err(|e| format!("{e:#}"))?;
         let data_url = format!("data:image/png;base64,{}", BASE64.encode(&png));
 
         Ok(PreviewResult {
@@ -204,7 +207,8 @@ pub async fn export_batch(
                 let loaded = codec::decode_rgba(&bytes)?;
                 let blurred = blur::apply_stack(&loaded.image, &stack);
                 let out_format = codec::format_from_name(out)?;
-                let out_bytes = codec::encode_to_bytes(&blurred, out_format, jpeg_quality)?;
+                let out_bytes =
+                    codec::encode_to_bytes(&blurred, out_format, jpeg_quality, loaded.icc.as_deref())?;
                 repo.write(&out_loc, &out_bytes)?;
                 Ok(())
             })();

@@ -134,7 +134,7 @@ mod tests {
             store: Mutex::new(HashMap::new()),
         };
         let img = image::RgbaImage::from_pixel(3, 2, image::Rgba([10, 20, 30, 255]));
-        let bytes = codec::encode_to_bytes(&img, ImageFormat::Png, 90).unwrap();
+        let bytes = codec::encode_to_bytes(&img, ImageFormat::Png, 90, None).unwrap();
         let loc = ResourceLocation::try_from("mem://a.png".to_string()).unwrap();
 
         assert!(!repo.exists(&loc).unwrap());

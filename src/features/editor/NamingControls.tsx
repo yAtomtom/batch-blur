@@ -85,6 +85,9 @@ export function NamingControls({ config, onChange }: Props) {
       {config.kind === "overwrite" && (
         <p className="warn">{t("naming.overwriteWarning")}</p>
       )}
+
+      {/* 上書き時は EXIF 等が不可逆に失われるため、保存方法によらず常に明示する。 */}
+      <p className="hint">{t("naming.metadataNote")}</p>
     </div>
   );
 }

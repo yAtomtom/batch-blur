@@ -94,8 +94,13 @@ mod tests {
     }
 
     fn png_bytes(w: u32, h: u32, px: [u8; 4]) -> Vec<u8> {
-        codec::encode_to_bytes(&RgbaImage::from_pixel(w, h, Rgba(px)), ImageFormat::Png, 90)
-            .unwrap()
+        codec::encode_to_bytes(
+            &RgbaImage::from_pixel(w, h, Rgba(px)),
+            ImageFormat::Png,
+            90,
+            None,
+        )
+        .unwrap()
     }
 
     #[test]

@@ -57,6 +57,8 @@ export const ja = {
     select: "選択",
     clear: "クリア",
     overwriteWarning: "元ファイルを直接上書きします。元に戻せません。",
+    metadataNote:
+      "書き出し時、EXIF などのメタデータは引き継がれません（ICC カラープロファイルは保持されます）。",
   },
   batch: {
     cancel: "キャンセル",
@@ -114,6 +116,8 @@ export const en = {
     clear: "Clear",
     overwriteWarning:
       "Overwrites the original files directly. This cannot be undone.",
+    metadataNote:
+      "Exports do not carry over EXIF or other metadata (ICC color profiles are preserved).",
   },
   batch: {
     cancel: "Cancel",
