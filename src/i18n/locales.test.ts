@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { ja, en } from "./locales";
+import { describe, expect, it } from "vitest";
+import { en, ja } from "./locales";
 
 type Dict = { [key: string]: string | Dict };
 

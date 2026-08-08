@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
 import { createInstance } from "i18next";
-import { ja, en } from "./locales";
+import { describe, expect, it } from "vitest";
+import { en, ja } from "./locales";
 
 async function make(lng: string) {
   const i = createInstance();

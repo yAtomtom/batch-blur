@@ -1,12 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  initHistory,
-  commit,
-  undo,
-  redo,
-  canUndo,
   canRedo,
+  canUndo,
+  commit,
   HISTORY_LIMIT,
+  initHistory,
+  redo,
+  undo,
 } from "./EditHistory";
 
 interface Settings {
@@ -29,7 +29,7 @@ describe("EditHistory", () => {
   });
 
   it("commit of an equal value is a no-op", () => {
-    let h = initHistory(s(5));
+    const h = initHistory(s(5));
     const same = commit(h, s(5));
     expect(same).toBe(h);
   });

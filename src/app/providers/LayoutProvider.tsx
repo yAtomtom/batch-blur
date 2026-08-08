@@ -5,7 +5,13 @@
  * レイアウト設定をドメイン状態から独立した Context として先に用意する。
  */
 
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useMemo,
+  useState,
+} from "react";
 
 /** パネルの並び（将来はドラッグで並べ替え可能にする）。 */
 export interface WorkspaceLayout {

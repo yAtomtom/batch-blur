@@ -5,9 +5,12 @@
  */
 
 import { useCallback, useRef, useState } from "react";
+import {
+  type SaveConfiguration,
+  toSaveMode,
+} from "../../domain/SaveConfiguration";
 import { cancelExport, exportBatch } from "../../ipc/commands";
 import type { ExportProgress, FilterSettings } from "../../ipc/types";
-import { toSaveMode, type SaveConfiguration } from "../../domain/SaveConfiguration";
 
 export interface ExportState {
   running: boolean;

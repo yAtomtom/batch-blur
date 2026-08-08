@@ -6,11 +6,11 @@
 
 import {
   createContext,
+  type ReactNode,
   useContext,
   useEffect,
   useMemo,
   useState,
-  type ReactNode,
 } from "react";
 
 export type ThemeMode = "light" | "dark" | "system";
@@ -54,10 +54,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEY, mode);
   }, [mode, resolved]);
 
-  const value = useMemo(
-    () => ({ mode, setMode, resolved }),
-    [mode, resolved],
-  );
+  const value = useMemo(() => ({ mode, setMode, resolved }), [mode, resolved]);
 
   return (
     <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>

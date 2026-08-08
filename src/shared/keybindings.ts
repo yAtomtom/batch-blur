@@ -40,7 +40,9 @@ const TEXT_INPUT_TYPES = new Set([
 function isTextEditable(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   if (target.tagName === "TEXTAREA" || target.isContentEditable) return true;
-  return target instanceof HTMLInputElement && TEXT_INPUT_TYPES.has(target.type);
+  return (
+    target instanceof HTMLInputElement && TEXT_INPUT_TYPES.has(target.type)
+  );
 }
 
 export function useKeybindings(handlers: KeyHandlers): void {

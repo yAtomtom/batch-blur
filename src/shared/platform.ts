@@ -13,9 +13,11 @@
  * 将来の仕様変更に脆いため多段判定にしている。
  */
 export const isMac: boolean = (() => {
-  const uaData = (navigator as Navigator & {
-    userAgentData?: { platform?: string };
-  }).userAgentData;
+  const uaData = (
+    navigator as Navigator & {
+      userAgentData?: { platform?: string };
+    }
+  ).userAgentData;
   if (uaData?.platform) return uaData.platform === "macOS";
   return navigator.userAgent.includes("Macintosh");
 })();

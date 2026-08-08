@@ -6,9 +6,9 @@
  */
 
 import { useTranslation } from "react-i18next";
+import { assetUrl } from "../../ipc/commands";
 import type { ImageMeta } from "../../ipc/types";
 import type { PreviewState } from "./usePreview";
-import { assetUrl } from "../../ipc/commands";
 
 interface Props {
   selected: ImageMeta | null;

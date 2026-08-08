@@ -1,7 +1,8 @@
 // 依存なしで 512x512 の RGBA PNG プレースホルダを生成する（tauri icon の元画像用）。
 // 中央に淡い円を置いたアクセントカラーの単純な図。差し替え前提。
+
+import { mkdirSync, writeFileSync } from "node:fs";
 import { deflateSync } from "node:zlib";
-import { writeFileSync, mkdirSync } from "node:fs";
 
 const SIZE = 512;
 
@@ -17,7 +18,8 @@ const crcTable = (() => {
 })();
 function crc32(buf) {
   let c = 0xffffffff;
-  for (let i = 0; i < buf.length; i++) c = crcTable[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+  for (let i = 0; i < buf.length; i++)
+    c = crcTable[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
   return (c ^ 0xffffffff) >>> 0;
 }
 

@@ -1,5 +1,5 @@
-import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite";
 
 // Tauri は固定ポートの dev server を前提とする。
 const host = process.env.TAURI_DEV_HOST;
