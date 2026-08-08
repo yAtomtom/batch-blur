@@ -9,31 +9,31 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useAssets } from "../features/asset-catalog/useAssets";
-import { FileList } from "../features/asset-catalog/FileList";
-import { Canvas } from "../features/editor/Canvas";
-import { FilterControls } from "../features/editor/FilterControls";
-import { NamingControls } from "../features/editor/NamingControls";
-import { usePreview } from "../features/editor/usePreview";
-import { useExport } from "../features/batch/useExport";
-import { BatchRunner } from "../features/batch/BatchRunner";
-import { useKeybindings } from "../shared/keybindings";
-import { undoHint, redoHint } from "../shared/platform";
 import {
   canRedo,
   canUndo,
   commit,
+  type EditHistory,
   initHistory,
   redo,
   undo,
-  type EditHistory,
 } from "../domain/EditHistory";
 import {
   defaultSaveConfiguration,
   type SaveConfiguration,
 } from "../domain/SaveConfiguration";
-import { useTheme, type ThemeMode } from "./providers/ThemeProvider";
+import { FileList } from "../features/asset-catalog/FileList";
+import { useAssets } from "../features/asset-catalog/useAssets";
+import { BatchRunner } from "../features/batch/BatchRunner";
+import { useExport } from "../features/batch/useExport";
+import { Canvas } from "../features/editor/Canvas";
+import { FilterControls } from "../features/editor/FilterControls";
+import { NamingControls } from "../features/editor/NamingControls";
+import { usePreview } from "../features/editor/usePreview";
 import type { FilterSettings } from "../ipc/types";
+import { useKeybindings } from "../shared/keybindings";
+import { redoHint, undoHint } from "../shared/platform";
+import { type ThemeMode, useTheme } from "./providers/ThemeProvider";
 
 const PREVIEW_MAX_DIM = 1600;
 const INITIAL_SETTINGS: FilterSettings = { kind: "gaussian", radius: 8 };
@@ -98,11 +98,17 @@ export function App() {
     [],
   );
   const doNext = useCallback(
-    () => setSelectedIndex((i) => Math.min(assetsRef.current.length - 1, i + 1)),
+    () =>
+      setSelectedIndex((i) => Math.min(assetsRef.current.length - 1, i + 1)),
     [],
   );
 
-  useKeybindings({ onUndo: doUndo, onRedo: doRedo, onPrev: doPrev, onNext: doNext });
+  useKeybindings({
+    onUndo: doUndo,
+    onRedo: doRedo,
+    onPrev: doPrev,
+    onNext: doNext,
+  });
 
   const runExport = useCallback(() => {
     void exporter.run(
@@ -117,15 +123,27 @@ export function App() {
       <header className="app-header">
         <h1>Batch Blur</h1>
         <div className="header-actions">
-          <button onClick={pickFiles}>{t("header.addImages")}</button>
-          <button onClick={clear} disabled={assets.length === 0}>
+          <button type="button" onClick={pickFiles}>
+            {t("header.addImages")}
+          </button>
+          <button type="button" onClick={clear} disabled={assets.length === 0}>
             {t("header.clear")}
           </button>
           <span className="spacer" />
-          <button onClick={doUndo} disabled={!canUndo(history)} title={undoHint}>
+          <button
+            type="button"
+            onClick={doUndo}
+            disabled={!canUndo(history)}
+            title={undoHint}
+          >
             {t("header.undo")}
           </button>
-          <button onClick={doRedo} disabled={!canRedo(history)} title={redoHint}>
+          <button
+            type="button"
+            onClick={doRedo}
+            disabled={!canRedo(history)}
+            title={redoHint}
+          >
             {t("header.redo")}
           </button>
           <label className="theme-select">
@@ -184,9 +202,7 @@ export function App() {
         </aside>
       </div>
 
-      {isDragging && (
-        <div className="drop-overlay">{t("drop.overlay")}</div>
-      )}
+      {isDragging && <div className="drop-overlay">{t("drop.overlay")}</div>}
     </div>
   );
 }

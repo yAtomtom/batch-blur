@@ -14,17 +14,23 @@ interface Props {
 
 export function BatchRunner({ count, state, onRun, onCancel }: Props) {
   const { t } = useTranslation();
-  const pct = state.total > 0 ? Math.round((state.done / state.total) * 100) : 0;
+  const pct =
+    state.total > 0 ? Math.round((state.done / state.total) * 100) : 0;
 
   return (
     <div className="batch-runner">
       <div className="batch-actions">
         {state.running ? (
-          <button className="danger" onClick={onCancel}>
+          <button type="button" className="danger" onClick={onCancel}>
             {t("batch.cancel")}
           </button>
         ) : (
-          <button className="primary" onClick={onRun} disabled={count === 0}>
+          <button
+            type="button"
+            className="primary"
+            onClick={onRun}
+            disabled={count === 0}
+          >
             {t("batch.run", { n: count })}
           </button>
         )}

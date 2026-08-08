@@ -33,15 +33,18 @@ export function FilterControls({ settings, onChange, onCommit }: Props) {
   return (
     <div className="controls">
       <div className="control-group">
+        {/* biome-ignore lint/a11y/noLabelWithoutControl: 単一コントロールを持たないグループ見出し */}
         <label>{t("filter.kind")}</label>
         <div className="segmented">
           <button
+            type="button"
             className={settings.kind === "gaussian" ? "active" : ""}
             onClick={() => setKind("gaussian")}
           >
             {t("filter.gaussian")}
           </button>
           <button
+            type="button"
             className={settings.kind === "block" ? "active" : ""}
             onClick={() => setKind("block")}
           >
@@ -51,10 +54,11 @@ export function FilterControls({ settings, onChange, onCommit }: Props) {
       </div>
 
       <div className="control-group">
-        <label>
+        <label htmlFor="filter-radius">
           {t("filter.radius")} <strong>{settings.radius}</strong>
         </label>
         <input
+          id="filter-radius"
           type="range"
           min={0}
           max={MAX_RADIUS_UI}

@@ -4,10 +4,10 @@
  */
 
 import { useTranslation } from "react-i18next";
-import type { ImageMeta } from "../../ipc/types";
-import type { LoadError } from "./useAssets";
 import type { SaveConfiguration } from "../../domain/SaveConfiguration";
 import { previewOutputName } from "../../domain/SaveConfiguration";
+import type { ImageMeta } from "../../ipc/types";
+import type { LoadError } from "./useAssets";
 
 interface Props {
   assets: ImageMeta[];
@@ -35,6 +35,7 @@ export function FileList({
 
       <ul>
         {assets.map((a, i) => (
+          // biome-ignore lint/a11y/useKeyWithClickEvents: キーボードでの選択移動は上位のグローバルキーバインド（矢印キー）で提供済み
           <li
             key={a.path}
             className={i === selectedIndex ? "selected" : ""}
@@ -45,6 +46,7 @@ export function FileList({
                 {a.fileName}
               </span>
               <button
+                type="button"
                 className="remove"
                 title={t("fileList.removeFromList")}
                 onClick={(e) => {

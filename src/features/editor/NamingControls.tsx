@@ -22,6 +22,7 @@ export function NamingControls({ config, onChange }: Props) {
   return (
     <div className="controls">
       <div className="control-group">
+        {/* biome-ignore lint/a11y/noLabelWithoutControl: 単一コントロールを持たないグループ見出し（各 radio は自身の label 内にネスト済み） */}
         <label>{t("naming.saveMethod")}</label>
         <div className="radio-row">
           <label>
@@ -48,8 +49,9 @@ export function NamingControls({ config, onChange }: Props) {
       {config.kind === "saveAs" && (
         <>
           <div className="control-group">
-            <label>{t("naming.prefix")}</label>
+            <label htmlFor="naming-prefix">{t("naming.prefix")}</label>
             <input
+              id="naming-prefix"
               type="text"
               value={config.prefix}
               placeholder={t("naming.none")}
@@ -57,8 +59,9 @@ export function NamingControls({ config, onChange }: Props) {
             />
           </div>
           <div className="control-group">
-            <label>{t("naming.suffix")}</label>
+            <label htmlFor="naming-suffix">{t("naming.suffix")}</label>
             <input
+              id="naming-suffix"
               type="text"
               value={config.suffix}
               placeholder={t("naming.none")}
@@ -66,14 +69,20 @@ export function NamingControls({ config, onChange }: Props) {
             />
           </div>
           <div className="control-group">
+            {/* biome-ignore lint/a11y/noLabelWithoutControl: 単一コントロールを持たないグループ見出し */}
             <label>{t("naming.outDir")}</label>
             <div className="out-dir-row">
               <span className="out-dir" title={config.outDir ?? ""}>
                 {config.outDir ?? t("naming.sameAsSource")}
               </span>
-              <button onClick={pickOutDir}>{t("naming.select")}</button>
+              <button type="button" onClick={pickOutDir}>
+                {t("naming.select")}
+              </button>
               {config.outDir && (
-                <button onClick={() => onChange({ ...config, outDir: null })}>
+                <button
+                  type="button"
+                  onClick={() => onChange({ ...config, outDir: null })}
+                >
                   {t("naming.clear")}
                 </button>
               )}
