@@ -29,17 +29,20 @@ export function usePreview(
 ): PreviewState {
   // どの path に対する結果かを持たせ、返却時に現在の path と突き合わせる。
   // effect での消去（paint 後 ＝ 1 フレーム旧画像が見える）に依存しない。
-  const [result, setResult] = useState<{ path: string; dataUrl: string } | null>(
-    null,
-  );
-  const [failure, setFailure] = useState<{ path: string; message: string } | null>(
-    null,
-  );
+  const [result, setResult] = useState<{
+    path: string;
+    dataUrl: string;
+  } | null>(null);
+  const [failure, setFailure] = useState<{
+    path: string;
+    message: string;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Rust 側へエコーバック用に渡す一意 ID（採否判定には使わない）。
   const reqCounter = useRef(0);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: settings はレンダー毎に別オブジェクトになり得るため、依存はオブジェクトでなく値（kind/radius）で指定し debounce の再実行を制御する（冒頭コメント参照）
   useEffect(() => {
     if (!path) {
       setResult(null);

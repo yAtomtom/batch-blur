@@ -42,7 +42,8 @@ body,
 body {
   /* 日本語グリフを持つフォントを OS 横断で拾う（Windows / macOS / Linux）。
      いずれか最初に見つかった日本語対応フォントで □(豆腐) を回避する。 */
-  font-family: system-ui, -apple-system, "Segoe UI", "Yu Gothic UI",
+  font-family:
+    system-ui, -apple-system, "Segoe UI", "Yu Gothic UI",
     "Yu Gothic", "Meiryo", "Hiragino Sans", "Hiragino Kaku Gothic ProN",
     "Noto Sans CJK JP", "Noto Sans JP", "IPAexGothic", "TakaoPGothic",
     "VL PGothic", sans-serif;
@@ -214,7 +215,9 @@ input[type="range"] {
 .error-row {
   display: flex;
   flex-direction: column;
+  /* biome-ignore lint/complexity/noImportantStyles: 一覧アイテム共通の li 指定（特異度で優位）を上書きして既存の見た目を維持する */
   padding: 4px 0 !important;
+  /* biome-ignore lint/complexity/noImportantStyles: 同上 */
   cursor: default !important;
 }
 .error-detail {

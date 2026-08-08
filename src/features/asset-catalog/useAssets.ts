@@ -3,12 +3,12 @@
  * ドラッグ&ドロップは Tauri ネイティブイベントを使う（HTML5 D&D は実パスを取れない）。
  */
 
-import { useCallback, useEffect, useState } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { loadImages } from "../../ipc/commands";
-import type { ImageMeta } from "../../ipc/types";
+import type { ImageMeta, LoadResult } from "../../ipc/types";
 
 const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp", "bmp"];
 
@@ -64,7 +64,7 @@ export function useAssets(): UseAssets {
 
       // ファイル単位の失敗は results 内 Error 行で扱う。ここで reject するのは
       // 読み込み処理自体の失敗（Rust 側の join エラー等）＝raw に表示する。
-      let results;
+      let results: LoadResult[];
       try {
         results = await loadImages(targets);
       } catch (e) {
@@ -83,11 +83,17 @@ export function useAssets(): UseAssets {
       });
       setErrors((prev) => {
         const failed = results
-          .filter((r): r is Extract<typeof r, { status: "error" }> => r.status === "error")
+          .filter(
+            (r): r is Extract<typeof r, { status: "error" }> =>
+              r.status === "error",
+          )
           .map((r) => ({ path: r.path, error: r.error }));
         const okPaths = new Set(
           results
-            .filter((r): r is Extract<typeof r, { status: "ok" }> => r.status === "ok")
+            .filter(
+              (r): r is Extract<typeof r, { status: "ok" }> =>
+                r.status === "ok",
+            )
             .map((r) => r.meta.path),
         );
         // 今回読み込みに成功した path の残留エラーは解消する。
