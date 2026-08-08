@@ -5,6 +5,7 @@
 
 import { invoke, Channel, convertFileSrc } from "@tauri-apps/api/core";
 import type {
+  ExportOutcome,
   ExportProgress,
   FilterSettings,
   LoadResult,
@@ -36,10 +37,10 @@ export function exportBatch(
   save: SaveMode,
   jpegQuality: number,
   onProgress: (p: ExportProgress) => void,
-): Promise<void> {
+): Promise<ExportOutcome> {
   const channel = new Channel<ExportProgress>();
   channel.onmessage = onProgress;
-  return invoke<void>("export_batch", {
+  return invoke<ExportOutcome>("export_batch", {
     paths,
     settings,
     save,

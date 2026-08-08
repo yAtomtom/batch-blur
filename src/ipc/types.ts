@@ -36,6 +36,22 @@ export interface ExportProgress {
   error: string | null;
 }
 
+/** 書き出しに失敗したファイル（生エラー付き）。 */
+export interface ExportFailure {
+  path: string;
+  error: string;
+}
+
+/**
+ * 一括書き出しの結果。部分失敗・キャンセルはエラーではなく結果として表す。
+ * invoke が reject するのは前提検証（出力衝突等）とインフラ障害のみ。
+ */
+export interface ExportOutcome {
+  completed: number;
+  canceled: boolean;
+  failures: ExportFailure[];
+}
+
 /** 保存モード（Rust domain::save::SaveMode と一致）。 */
 export type SaveMode =
   | { mode: "overwrite" }

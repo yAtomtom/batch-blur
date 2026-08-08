@@ -18,7 +18,10 @@ use crate::domain::save::{self, SaveMode};
 use crate::imaging::{blur, codec};
 use crate::repository::local_fs::LocalFileSystemRepository;
 use crate::repository::{ImageRepository, ResourceLocation};
-use crate::types::{ExportProgress, FilterSettings, ImageMeta, LoadResult, PreviewResult};
+use crate::types::{
+    ExportFailure, ExportOutcome, ExportProgress, FilterSettings, ImageMeta, LoadResult,
+    PreviewResult,
+};
 
 /// プレビューの縮小ベースをキャッシュ（LRU(1)）。スライダー連打で再デコード/再縮小を避ける。
 struct PreviewBase {
@@ -144,6 +147,9 @@ pub async fn generate_preview(
 }
 
 /// 一括書き出し（MVP は逐次）。進捗は Channel で 1 ファイルごとに送る。
+///
+/// 部分失敗・キャンセルは `Err` ではなく [`ExportOutcome`] で返す。
+/// `Err` は前提検証（出力衝突・別名保存先の既存）とインフラ障害のみ。
 #[tauri::command]
 pub async fn export_batch(
     paths: Vec<String>,
@@ -152,13 +158,13 @@ pub async fn export_batch(
     jpeg_quality: u8,
     on_progress: Channel<ExportProgress>,
     state: State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<ExportOutcome, String> {
     let stack = settings.to_stack()?;
     state.cancel.store(false, Ordering::SeqCst);
     let cancel = state.cancel.clone();
     let repo = state.repository.clone();
 
-    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<ExportOutcome, String> {
         let sources: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
 
         // 出力パスを先に解決し、衝突を検出（自動リネームによる隠蔽はしない）。
@@ -180,11 +186,15 @@ pub async fn export_batch(
         }
 
         let total = sources.len() as u32;
-        let mut failures: Vec<String> = Vec::new();
+        let mut completed = 0u32;
+        let mut canceled = false;
+        let mut failures: Vec<ExportFailure> = Vec::new();
 
         for (i, (src, out)) in sources.iter().zip(outputs.iter()).enumerate() {
+            // キャンセルは失敗ではなく正常な中断（ここまでの結果を outcome で返す）。
             if cancel.load(Ordering::SeqCst) {
-                return Err(format!("canceled ({}/{} completed)", i, total));
+                canceled = true;
+                break;
             }
 
             let result = (|| -> anyhow::Result<()> {
@@ -200,8 +210,12 @@ pub async fn export_batch(
             })();
 
             let err = result.err().map(|e| format!("{e:#}"));
-            if let Some(ref e) = err {
-                failures.push(format!("{}: {}", src.display(), e));
+            match &err {
+                Some(e) => failures.push(ExportFailure {
+                    path: src.to_string_lossy().to_string(),
+                    error: e.clone(),
+                }),
+                None => completed += 1,
             }
             let _ = on_progress.send(ExportProgress {
                 done: (i as u32) + 1,
@@ -211,15 +225,11 @@ pub async fn export_batch(
             });
         }
 
-        if failures.is_empty() {
-            Ok(())
-        } else {
-            Err(format!(
-                "{} file(s) failed to export:\n{}",
-                failures.len(),
-                failures.join("\n")
-            ))
-        }
+        Ok(ExportOutcome {
+            completed,
+            canceled,
+            failures,
+        })
     })
     .await
     .map_err(|e| format!("export processing failed: {e}"))?

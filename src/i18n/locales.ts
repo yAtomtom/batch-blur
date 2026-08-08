@@ -63,6 +63,7 @@ export const ja = {
     run: "{{n}} 件を一括保存",
     failures: "失敗 {{n}} 件:",
     done: "✓ すべて保存しました（{{n}} 件）",
+    canceled: "キャンセルしました（{{done}}/{{total}} 件処理済み）",
   },
 } as const;
 
@@ -119,5 +120,6 @@ export const en = {
     run: "Save all ({{n}})",
     failures: "{{n}} failed:",
     done: "✓ Saved all ({{n}})",
+    canceled: "Canceled ({{done}}/{{total}} processed)",
   },
 } as const;

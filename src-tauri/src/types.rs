@@ -63,3 +63,26 @@ pub struct ExportProgress {
     /// このファイルのエラー。None は成功。
     pub error: Option<String>,
 }
+
+/// 書き出しに失敗したファイル（生エラー付き）。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportFailure {
+    pub path: String,
+    pub error: String,
+}
+
+/// 一括書き出しの結果。
+///
+/// 部分失敗・ユーザーによるキャンセルは「エラー」ではなく結果として表す。
+/// コマンドが `Err` を返すのは前提検証（出力衝突等）とインフラ障害のみ
+/// ＝「1 件も処理を開始できなかった」ケースに限る。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportOutcome {
+    /// 書き出しに成功したファイル数。
+    pub completed: u32,
+    /// ユーザー操作により途中で中断されたか。
+    pub canceled: bool,
+    pub failures: Vec<ExportFailure>,
+}

@@ -365,6 +365,13 @@ input[type="range"] {
   color: var(--ok);
   font-weight: 600;
 }
+/* キャンセルはユーザー操作による正常な中断 ＝ エラー色にしない */
+.batch-canceled {
+  margin-top: 12px;
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 12px;
+}
 
 /* ドロップオーバーレイ */
 .drop-overlay {

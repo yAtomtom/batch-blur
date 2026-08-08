@@ -46,6 +46,12 @@ export function BatchRunner({ count, state, onRun, onCancel }: Props) {
         <div className="batch-fatal">{state.fatalError}</div>
       )}
 
+      {state.canceled && (
+        <div className="batch-canceled">
+          {t("batch.canceled", { done: state.done, total: state.total })}
+        </div>
+      )}
+
       {state.failures.length > 0 && (
         <div className="batch-failures">
           <div className="batch-failures-title">
@@ -66,6 +72,7 @@ export function BatchRunner({ count, state, onRun, onCancel }: Props) {
 
       {state.finished &&
         !state.fatalError &&
+        !state.canceled &&
         state.failures.length === 0 && (
           <div className="batch-ok">{t("batch.done", { n: state.total })}</div>
         )}
