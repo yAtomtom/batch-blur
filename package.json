@@ -1,6 +1,6 @@
 {
   "name": "batch-blur",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "複数画像に一括でガウス/ブロックブラーを適用・保存するデスクトップアプリ",
   "license": "MIT",
   "type": "module",
