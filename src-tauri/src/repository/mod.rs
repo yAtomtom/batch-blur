@@ -77,6 +77,13 @@ pub trait ImageRepository: Send + Sync {
 
     /// メタ情報を効率的に取得する（FS はヘッダのみ読む）。
     fn metadata(&self, loc: &ResourceLocation) -> Result<ResourceMeta>;
+
+    /// リソース内容の鮮度トークンを返す（プレビューキャッシュの無効化に用いる）。
+    ///
+    /// 事後条件: 内容が変化すれば返る値も（実用上）変化する。同一内容での安定性は
+    /// 要求しない。FS 実装はサイズ+更新時刻による近似で、更新時刻の粒度内に
+    /// 同サイズで書き換わった変更は検出できない（許容する割り切り）。
+    fn fingerprint(&self, loc: &ResourceLocation) -> Result<String>;
 }
 
 #[cfg(test)]
@@ -126,6 +133,18 @@ mod tests {
                 format: loaded.format,
             })
         }
+
+        fn fingerprint(&self, loc: &ResourceLocation) -> Result<String> {
+            // mtime を持たないバックエンドでも内容由来の値で契約を満たせることを示す。
+            // 総和のような弱い要約は同サイズの並べ替えを見逃すため FNV-1a を使う。
+            let bytes = self.read(loc)?;
+            let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+            for &b in &bytes {
+                hash ^= u64::from(b);
+                hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+            }
+            Ok(format!("{}:{hash:x}", bytes.len()))
+        }
     }
 
     #[test]
@@ -145,6 +164,14 @@ mod tests {
         let meta = repo.metadata(&loc).unwrap();
         assert_eq!((meta.width, meta.height), (3, 2));
         assert_eq!(meta.format, ImageFormat::Png);
+
+        // fingerprint: 同一内容で安定し、内容が変われば変わる。
+        let fp1 = repo.fingerprint(&loc).unwrap();
+        assert_eq!(repo.fingerprint(&loc).unwrap(), fp1);
+        let img2 = image::RgbaImage::from_pixel(5, 5, image::Rgba([1, 2, 3, 255]));
+        let bytes2 = codec::encode_to_bytes(&img2, ImageFormat::Png, 90, None).unwrap();
+        repo.write(&loc, &bytes2).unwrap();
+        assert_ne!(repo.fingerprint(&loc).unwrap(), fp1);
     }
 
     #[test]

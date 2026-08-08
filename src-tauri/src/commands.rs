@@ -25,9 +25,11 @@ use crate::types::{
 
 /// プレビューの縮小ベースをキャッシュ（LRU(1)）。スライダー連打で再デコード/再縮小を避ける。
 struct PreviewBase {
-    /// キャッシュキー: ロケータ（生文字列）の等価比較で判定（正規化はしない）。
+    /// キャッシュキー: ロケータ（生文字列, 正規化しない）・max_dim・fingerprint の三つ組。
     location: ResourceLocation,
     max_dim: u32,
+    /// 読み込み時点の内容鮮度トークン。上書き保存等で内容が変わった後の誤ヒットを防ぐ。
+    fingerprint: String,
     base: RgbaImage,
     scale: f32,
     /// 原本の ICC プロファイル。プレビュー PNG にも埋めて書き出しと色を揃える。
@@ -106,14 +108,17 @@ pub async fn generate_preview(
     let location = ResourceLocation::try_from(path).map_err(|e| format!("{e:#}"))?;
 
     tauri::async_runtime::spawn_blocking(move || -> Result<PreviewResult, String> {
+        // 内容の鮮度トークン。上書き保存等で内容が変わったキャッシュを誤って使わない。
+        let fingerprint = repo.fingerprint(&location).map_err(|e| format!("{e:#}"))?;
+
         // 縮小ベースを取得（キャッシュヒットしなければ read＋デコード＋縮小して保存）。
         let (base, scale, icc) = {
             let mut guard = cache
                 .lock()
                 .map_err(|e| format!("failed to lock cache: {e}"))?;
-            let hit = guard
-                .as_ref()
-                .is_some_and(|b| b.location == location && b.max_dim == max_dim);
+            let hit = guard.as_ref().is_some_and(|b| {
+                b.location == location && b.max_dim == max_dim && b.fingerprint == fingerprint
+            });
             if !hit {
                 let bytes = repo.read(&location).map_err(|e| format!("{e:#}"))?;
                 // デコード失敗にロケータ文脈を付す（どのファイルで失敗したか追跡できるように）。
@@ -123,6 +128,7 @@ pub async fn generate_preview(
                 *guard = Some(PreviewBase {
                     location: location.clone(),
                     max_dim,
+                    fingerprint,
                     base,
                     scale,
                     icc: loaded.icc,
@@ -207,8 +213,12 @@ pub async fn export_batch(
                 let loaded = codec::decode_rgba(&bytes)?;
                 let blurred = blur::apply_stack(&loaded.image, &stack);
                 let out_format = codec::format_from_name(out)?;
-                let out_bytes =
-                    codec::encode_to_bytes(&blurred, out_format, jpeg_quality, loaded.icc.as_deref())?;
+                let out_bytes = codec::encode_to_bytes(
+                    &blurred,
+                    out_format,
+                    jpeg_quality,
+                    loaded.icc.as_deref(),
+                )?;
                 repo.write(&out_loc, &out_bytes)?;
                 Ok(())
             })();

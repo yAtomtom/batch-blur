@@ -77,6 +77,21 @@ impl ImageRepository for LocalFileSystemRepository {
             format,
         })
     }
+
+    fn fingerprint(&self, loc: &ResourceLocation) -> Result<String> {
+        let path = to_path(loc);
+        let md = std::fs::metadata(path)
+            .with_context(|| format!("cannot read file metadata: {}", path.display()))?;
+        let modified = md
+            .modified()
+            .with_context(|| format!("cannot read modified time: {}", path.display()))?;
+        // epoch 以前の mtime も一意に表現する（fallback で潰さない）。
+        let stamp = match modified.duration_since(std::time::UNIX_EPOCH) {
+            Ok(d) => format!("{}", d.as_nanos()),
+            Err(e) => format!("-{}", e.duration().as_nanos()),
+        };
+        Ok(format!("{}:{stamp}", md.len()))
+    }
 }
 
 #[cfg(test)]
@@ -145,6 +160,23 @@ mod tests {
         let loc = ResourceLocation::try_from(dir.join("nested/deep/o.png").as_path()).unwrap();
         repo.write(&loc, &png_bytes(2, 2, [7, 7, 7, 255])).unwrap();
         assert!(repo.exists(&loc).unwrap());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn fingerprint_reflects_content_replacement() {
+        let dir = temp_dir("local_fs_fingerprint");
+        let repo = LocalFileSystemRepository::new();
+        let loc = ResourceLocation::try_from(dir.join("f.png").as_path()).unwrap();
+
+        repo.write(&loc, &png_bytes(2, 2, [1, 1, 1, 255])).unwrap();
+        let fp1 = repo.fingerprint(&loc).unwrap();
+        assert_eq!(repo.fingerprint(&loc).unwrap(), fp1, "同一内容なら安定");
+
+        // サイズの異なる内容へ置換（mtime 粒度に依存せず必ず差が出る）。
+        repo.write(&loc, &png_bytes(8, 8, [9, 9, 9, 255])).unwrap();
+        assert_ne!(repo.fingerprint(&loc).unwrap(), fp1);
 
         let _ = std::fs::remove_dir_all(&dir);
     }
