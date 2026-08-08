@@ -59,8 +59,6 @@ export function App() {
   }, [i18n.resolvedLanguage, t]);
 
   // キーバインド用に最新値を参照する（コールバックを安定化させる）。
-  const settingsRef = useRef(settings);
-  settingsRef.current = settings;
   const historyRef = useRef(history);
   historyRef.current = history;
   const assetsRef = useRef(assets);
@@ -76,8 +74,10 @@ export function App() {
   const selected = assets[selectedIndex] ?? null;
   const preview = usePreview(selected?.path ?? null, settings, PREVIEW_MAX_DIM);
 
-  const commitSettings = useCallback(() => {
-    setHistory((h) => commit(h, settingsRef.current));
+  // 確定値は引数で受ける。ref 経由の読みだと同一イベント内の onChange → onCommit で
+  // 旧値を積んでしまう（種別変更が履歴に入らないバグの原因）。
+  const commitSettings = useCallback((next: FilterSettings) => {
+    setHistory((h) => commit(h, next));
   }, []);
 
   const applyHistory = useCallback((next: EditHistory<FilterSettings>) => {

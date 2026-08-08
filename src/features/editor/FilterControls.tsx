@@ -14,14 +14,16 @@ export const MAX_RADIUS_UI = 100;
 interface Props {
   settings: FilterSettings;
   onChange: (next: FilterSettings) => void;
-  onCommit: () => void;
+  /** 確定値を引数で受ける（onChange の state 反映を待たずに履歴へ積めるように）。 */
+  onCommit: (next: FilterSettings) => void;
 }
 
 export function FilterControls({ settings, onChange, onCommit }: Props) {
   const { t } = useTranslation();
   const setKind = (kind: FilterKind) => {
-    onChange({ ...settings, kind });
-    onCommit(); // 離散操作は即確定
+    const next = { ...settings, kind };
+    onChange(next);
+    onCommit(next); // 離散操作は即確定
   };
 
   const setRadius = (radius: number) => {
@@ -59,8 +61,8 @@ export function FilterControls({ settings, onChange, onCommit }: Props) {
           step={1}
           value={settings.radius}
           onChange={(e) => setRadius(Number(e.target.value))}
-          onPointerUp={onCommit}
-          onKeyUp={onCommit}
+          onPointerUp={() => onCommit(settings)}
+          onKeyUp={() => onCommit(settings)}
         />
       </div>
     </div>
