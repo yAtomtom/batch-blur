@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { FilterKind } from "../ipc/types";
 import {
   canRedo,
   canUndo,
@@ -10,7 +11,7 @@ import {
 } from "./EditHistory";
 
 interface Settings {
-  kind: "gaussian" | "block";
+  kind: FilterKind;
   radius: number;
 }
 

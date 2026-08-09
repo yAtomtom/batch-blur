@@ -45,6 +45,7 @@ export const ja = {
     kind: "フィルタ種類",
     gaussian: "ガウス",
     block: "ブロック",
+    mosaic: "モザイク",
     radius: "強さ（半径）:",
   },
   naming: {
@@ -105,6 +106,7 @@ export const en = {
     kind: "Filter type",
     gaussian: "Gaussian",
     block: "Block",
+    mosaic: "Mosaic",
     radius: "Strength (radius):",
   },
   naming: {

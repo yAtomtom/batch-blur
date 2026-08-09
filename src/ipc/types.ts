@@ -3,7 +3,7 @@
  * 将来は tauri-specta による自動生成に置き換える候補。
  */
 
-export type FilterKind = "gaussian" | "block";
+export type FilterKind = "gaussian" | "block" | "mosaic";
 
 export interface FilterSettings {
   kind: FilterKind;

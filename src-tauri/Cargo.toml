@@ -1,7 +1,7 @@
 [package]
 name = "batch-blur"
 version = "1.0.0"
-description = "複数画像に一括でガウス/ブロックブラーを適用・保存するデスクトップアプリ"
+description = "複数画像に一括でガウス/ブロックブラー・モザイクを適用・保存するデスクトップアプリ"
 authors = ["yAtomtom"]
 license = "MIT"
 edition = "2021"

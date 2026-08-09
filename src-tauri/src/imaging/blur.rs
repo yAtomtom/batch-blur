@@ -12,6 +12,16 @@ pub fn radius_to_sigma(radius: u32) -> f32 {
     radius as f32 / 2.0
 }
 
+/// UI の強度(半径) → モザイクのブロック辺長への固定変換（UI とパイプラインの契約）。
+///
+/// 事前条件: `radius <= MAX_RADIUS`（上流の `AxisStrength::uniform` が保証）。
+/// 事後条件: 戻り値 >= 1。radius==0 → 1（恒等）、radius>=1 → 2 以上（可視のピクセル化）。
+/// `scaled_radius` の事後条件（radius>=1 なら >=1）との合成により、書き出しで
+/// ピクセル化されるならプレビューでも必ずピクセル化される（WYSIWYG の維持）。
+pub fn radius_to_block(radius: u32) -> u32 {
+    radius + 1
+}
+
 /// 単一種別・単一半径のブラーを RGBA 画像へ適用する。
 ///
 /// 事前条件: 画像は 1x1 以上。事後条件: 出力寸法 == 入力寸法。radius==0 は恒等。
@@ -33,6 +43,7 @@ fn blur_channels(img: &RgbaImage, kind: FilterKind, radius: u32) -> RgbaImage {
     match kind {
         FilterKind::Gaussian => imageproc::filter::gaussian_blur_f32(img, radius_to_sigma(radius)),
         FilterKind::Block => box_blur_rgba(img, radius),
+        FilterKind::Mosaic => mosaic_rgba(img, radius_to_block(radius)),
     }
 }
 
@@ -149,20 +160,50 @@ fn clamp_idx(i: i64, n: i64) -> usize {
     i.clamp(0, n - 1) as usize
 }
 
+/// モザイク（ピクセレート）: Triangle 縮小（近似ブロック平均）→ Nearest 拡大。
+///
+/// 事前条件: `block >= 1`。事後条件: 出力寸法 == 入力寸法。block == 1 は恒等。
+/// block >= 2 の出力は ceil(w/b) x ceil(h/b) 個のセルで区分一定
+/// （セル境界は Nearest により均等配分され、寸法が block の整数倍なら block 格子と一致）。
+/// 不変条件: 一様画像は不変（resize の重みは正規化されている）。
+fn mosaic_rgba(img: &RgbaImage, block: u32) -> RgbaImage {
+    if block <= 1 {
+        return img.clone();
+    }
+    let (w, h) = img.dimensions();
+    let small = image::imageops::resize(
+        img,
+        w.div_ceil(block),
+        h.div_ceil(block),
+        image::imageops::FilterType::Triangle,
+    );
+    image::imageops::resize(&small, w, h, image::imageops::FilterType::Nearest)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::filter::{AxisStrength, FilterSpec};
+    use crate::domain::filter::{AxisStrength, FilterSpec, MAX_RADIUS};
     use image::Rgba;
+
+    const ALL_KINDS: [FilterKind; 3] =
+        [FilterKind::Gaussian, FilterKind::Block, FilterKind::Mosaic];
 
     fn solid(w: u32, h: u32, px: [u8; 4]) -> RgbaImage {
         RgbaImage::from_pixel(w, h, Rgba(px))
     }
 
+    /// 全画素の値が異なる勾配画像（ピクセル化の検出用）。
+    fn gradient(w: u32, h: u32) -> RgbaImage {
+        RgbaImage::from_fn(w, h, |x, y| {
+            Rgba([(x * 30) as u8, (y * 40) as u8, (x + y) as u8, 255])
+        })
+    }
+
     #[test]
     fn radius_zero_is_identity() {
         let img = solid(4, 4, [10, 20, 30, 255]);
-        for kind in [FilterKind::Gaussian, FilterKind::Block] {
+        for kind in ALL_KINDS {
             let out = blur_rgba(&img, kind, 0);
             assert_eq!(out, img, "radius 0 は恒等であるべき");
         }
@@ -220,7 +261,7 @@ mod tests {
         // 不透明赤 1 画素 + 完全透明緑。透明画素の色（緑）は可視領域へにじんではならない。
         let mut img = solid(3, 1, [0, 255, 0, 0]);
         img.put_pixel(0, 0, Rgba([255, 0, 0, 255]));
-        for kind in [FilterKind::Gaussian, FilterKind::Block] {
+        for kind in ALL_KINDS {
             let out = blur_rgba(&img, kind, 1);
             for (x, _, p) in out.enumerate_pixels() {
                 assert_eq!(p.0[1], 0, "kind={kind:?} x={x}: 透明画素の緑がにじんだ");
@@ -234,7 +275,7 @@ mod tests {
     fn semi_transparent_uniform_image_is_unchanged() {
         // premultiply→blur→unpremultiply の往復が一様画像で値を変えないこと。
         let img = solid(9, 9, [40, 80, 120, 200]);
-        for kind in [FilterKind::Gaussian, FilterKind::Block] {
+        for kind in ALL_KINDS {
             assert_eq!(blur_rgba(&img, kind, 3), img, "kind={kind:?}");
         }
     }
@@ -243,7 +284,72 @@ mod tests {
     fn fully_transparent_pixels_come_out_zeroed() {
         // a=0 の画素は色情報を持たない ＝ 出力は (0,0,0,0)。
         let img = solid(4, 4, [200, 100, 50, 0]);
-        let out = blur_rgba(&img, FilterKind::Block, 2);
-        assert!(out.pixels().all(|p| p.0 == [0, 0, 0, 0]));
+        for kind in ALL_KINDS {
+            let out = blur_rgba(&img, kind, 2);
+            assert!(out.pixels().all(|p| p.0 == [0, 0, 0, 0]), "kind={kind:?}");
+        }
+    }
+
+    #[test]
+    fn radius_to_block_contract() {
+        assert_eq!(radius_to_block(0), 1, "radius 0 は恒等（block 1）");
+        assert_eq!(radius_to_block(1), 2, "radius 1 から可視のピクセル化");
+        assert_eq!(radius_to_block(MAX_RADIUS), MAX_RADIUS + 1);
+    }
+
+    #[test]
+    fn mosaic_preserves_dimensions_on_non_multiples() {
+        // block 3 で 7x5（整数倍でない寸法）→ ceil 除算でセル数 3x2、寸法は不変。
+        let img = gradient(7, 5);
+        let out = blur_rgba(&img, FilterKind::Mosaic, 2);
+        assert_eq!(out.dimensions(), (7, 5));
+    }
+
+    #[test]
+    fn mosaic_bounds_distinct_colors_on_non_multiples() {
+        // 非整数倍寸法でも区分一定: Nearest 拡大は縮小画像の画素を複製するだけなので、
+        // 色数はセル数 ceil(7/3) x ceil(5/3) = 6 を超えない（境界の丸め実装に依存しない検証）。
+        let img = gradient(7, 5);
+        let out = blur_rgba(&img, FilterKind::Mosaic, 2); // block 3
+        assert_ne!(out, img, "非恒等（ピクセル化が起きるべき）");
+        let mut colors: Vec<[u8; 4]> = out.pixels().map(|p| p.0).collect();
+        colors.sort_unstable();
+        colors.dedup();
+        assert!(
+            colors.len() <= 6,
+            "色数 {} がセル数 6 を超えた",
+            colors.len()
+        );
+    }
+
+    #[test]
+    fn mosaic_is_piecewise_constant_on_exact_grid() {
+        // 寸法が block の整数倍なら Nearest 拡大の格子が block 格子と一致し、
+        // 各 2x2 セル内は一定になる。
+        let img = gradient(8, 6);
+        let out = blur_rgba(&img, FilterKind::Mosaic, 1); // block 2
+        assert_ne!(out, img, "非恒等（ピクセル化が起きるべき）");
+        for (x, y, p) in out.enumerate_pixels() {
+            let anchor = out.get_pixel(x - x % 2, y - y % 2);
+            assert_eq!(p, anchor, "セル({},{}) 内が一定でない", x / 2, y / 2);
+        }
+    }
+
+    #[test]
+    fn mosaic_uniform_image_is_unchanged() {
+        // resize の重みは正規化されているため、一様画像はセル分割でも値が変わらない。
+        let img = solid(9, 9, [40, 80, 120, 255]);
+        let out = blur_rgba(&img, FilterKind::Mosaic, 3);
+        assert_eq!(out, img);
+    }
+
+    #[test]
+    fn mosaic_preview_never_collapses_to_identity() {
+        // 強い縮小率でも効果が消えない（scaled_radius >= 1 と block = radius + 1 の合成）。
+        // 消えると「プレビュー素通し・書き出しモザイク」の WYSIWYG 破れになる。
+        let img = gradient(8, 8);
+        let spec = FilterSpec::whole(FilterKind::Mosaic, AxisStrength::uniform(1).unwrap());
+        let out = apply_stack_scaled(&img, &FilterStack::single(spec), 0.1);
+        assert_ne!(out, img, "プレビューが素通しになっている");
     }
 }

@@ -17,6 +17,8 @@ pub enum FilterKind {
     Gaussian,
     /// ブロック（box）ブラー（window = 2*radius + 1）
     Block,
+    /// モザイク（ピクセレート, block = radius + 1）
+    Mosaic,
 }
 
 /// X/Y 軸ごとの強度（半径）。
@@ -178,5 +180,9 @@ mod tests {
         assert_eq!(json, "\"gaussian\"");
         let k: FilterKind = serde_json::from_str("\"block\"").unwrap();
         assert_eq!(k, FilterKind::Block);
+        let json = serde_json::to_string(&FilterKind::Mosaic).unwrap();
+        assert_eq!(json, "\"mosaic\"");
+        let k: FilterKind = serde_json::from_str("\"mosaic\"").unwrap();
+        assert_eq!(k, FilterKind::Mosaic);
     }
 }

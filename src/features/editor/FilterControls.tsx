@@ -50,6 +50,13 @@ export function FilterControls({ settings, onChange, onCommit }: Props) {
           >
             {t("filter.block")}
           </button>
+          <button
+            type="button"
+            className={settings.kind === "mosaic" ? "active" : ""}
+            onClick={() => setKind("mosaic")}
+          >
+            {t("filter.mosaic")}
+          </button>
         </div>
       </div>
 
